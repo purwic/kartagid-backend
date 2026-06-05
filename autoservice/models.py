@@ -24,6 +24,14 @@ class Service(models.Model):
     def __str__(self):
         return self.name
 
+    def recalculate_rating(self):
+        """Пересчитывает средний рейтинг из отзывов"""
+        from django.db.models import Avg
+        avg = self.reviews.aggregate(Avg('rating'))['rating__avg']
+        if avg:
+            self.rating = round(avg, 1)
+            self.save()
+
 
 class Specialization(models.Model):
     """Модель специализации (теги)"""
@@ -49,6 +57,14 @@ class Review(models.Model):
     text = models.TextField("Текст отзыва")
     rating = models.IntegerField("Оценка", choices=[(i, i) for i in range(1, 6)])
     date = models.DateField("Дата")
+
+    def recalculate_rating(self):
+        """Пересчитывает средний рейтинг из отзывов"""
+        from django.db.models import Avg
+        avg = self.reviews.aggregate(Avg('rating'))['rating__avg']
+        if avg:
+            self.rating = round(avg, 1)
+            self.save()
 
     class Meta:
         verbose_name = "Отзыв"

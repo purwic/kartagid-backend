@@ -127,6 +127,7 @@
     </style>
 </head>
 <body>
+    {% csrf_token %}
 
     <!-- Header -->
     <nav class="navbar navbar-light bg-white border-bottom px-3" style="height: 60px;">
@@ -155,8 +156,7 @@
             👤 Админ
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
-            <li><a class="dropdown-item" href="#" onclick="adminAction('add')">➕ Добавить сервис</a></li>
-            <li><a class="dropdown-item" href="#" onclick="adminAction('edit')">✏️ Редактировать сервисы</a></li>
+            <li><a class="dropdown-item" href="/manage/">🔧 Управление сервисами</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item text-danger" href="#" onclick="logout()">🚪 Выйти</a></li>
         </ul>
@@ -199,7 +199,10 @@
                     </div>
                 </div>
 
-                <h6 class="border-bottom pb-1">Отзывы клиентов:</h6>
+                <h6 class="border-bottom pb-1 d-flex justify-content-between align-items-center">
+                    <span>Отзывы клиентов:</span>
+                    <button class="btn btn-sm btn-success" onclick="openReviewModal()">✍️ Оставить отзыв</button>
+                </h6>
                 <div id="detail-reviews" class="mb-3" style="max-height: 300px; overflow-y: auto;">
                 </div>
 
@@ -218,14 +221,47 @@
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
     
     <script>
-        // Инициализация карты
-        var map = L.map('map').setView([55.7558, 37.6173], 13);
+        // Пытаемся восстановить позицию из localStorage
+        const savedView = localStorage.getItem('mapView');
+        let initialLat = 55.7961; // Казань
+        let initialLng = 49.1088; // Казань
+        let initialZoom = 13;
+
+        if (savedView) {
+            try {
+                const view = JSON.parse(savedView);
+                initialLat = view.lat;
+                initialLng = view.lng;
+                initialZoom = view.zoom;
+            } catch (e) {
+                console.error('Ошибка загрузки позиции карты:', e);
+            }
+        }
+
+        var map = L.map('map').setView([initialLat, initialLng], initialZoom);
         
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
             subdomains: 'abcd',
             maxZoom: 20
         }).addTo(map);
+
+        // Сохраняем позицию карты при перемещении и зуме
+        function saveMapView() {
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            localStorage.setItem('mapView', JSON.stringify({
+                lat: center.lat,
+                lng: center.lng,
+                zoom: zoom
+            }));
+        }
+
+        // Сохраняем при перемещении карты
+        map.on('moveend', saveMapView);
+
+        // Сохраняем при зуме
+        map.on('zoomend', saveMapView);
 
         // Переменная для хранения маршрута
         var routingControl = null;
@@ -471,7 +507,7 @@ function buildRouteFromCoords(startLat, startLng, startName) {
         html: '🚗'
     });
     
-    startPointMarker = L.marker([service.latitude, service.longitude], {icon: startIcon})
+    startPointMarker = L.marker([startLat, startLng], {icon: startIcon})
         .addTo(map)
         .bindPopup('🚩 Отсюда')
         .openPopup();
@@ -492,7 +528,7 @@ function buildRouteFromCoords(startLat, startLng, startName) {
     routingControl = L.Routing.control({
         waypoints: [
             L.latLng(startLat, startLng),
-            L.latLng(currentService.lat, currentService.lng)
+            L.latLng(parseFloat(currentService.latitude), parseFloat(currentService.longitude))
         ],
         routeWhileDragging: false,
         addWaypoints: false,
@@ -587,9 +623,23 @@ function useGeolocation() {
 // ============ АВТОРИЗАЦИЯ АДМИНА ============
 
 // Проверка при загрузке страницы — вдруг уже залогинен
-(function checkAuthOnLoad() {
-    if (localStorage.getItem('isAdmin') === 'true') {
-        showAdminMode();
+(async function checkAuthOnLoad() {
+    try {
+        const response = await fetch('/api/auth/check/', {
+            credentials: 'same-origin'
+        });
+        const data = await response.json();
+
+        if (data.authenticated && data.user.is_staff) {
+            localStorage.setItem('isAdmin', 'true');
+            showAdminMode();
+        } else {
+            localStorage.removeItem('isAdmin');
+            showGuestMode();
+        }
+    } catch (error) {
+        console.error('Ошибка проверки авторизации:', error);
+        showGuestMode();
     }
 })();
 
@@ -607,23 +657,62 @@ function closeLoginModal() {
     document.getElementById('login-modal').classList.add('hidden');
 }
 
-// Обработка формы входа
-function handleLogin(event) {
-    event.preventDefault(); // чтобы страница не перезагружалась
-    
-    const login = document.getElementById('login-input').value.trim();
+async function handleLogin(event) {
+    event.preventDefault();
+
+    const username = document.getElementById('login-input').value.trim();
     const password = document.getElementById('password-input').value;
     const errorBox = document.getElementById('login-error');
-    
-    // ⚠️ ВРЕМЕННАЯ проверка — потом заменим на запрос к Django API
-    if (login === 'admin' && password === 'admin') {
-        localStorage.setItem('isAdmin', 'true');
-        closeLoginModal();
-        showAdminMode();
-    } else {
-        errorBox.textContent = '❌ Неверный логин или пароль';
+
+    try {
+        // Получаем CSRF токен
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                         getCookie('csrftoken');
+
+        const response = await fetch('/api/auth/login/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ username, password }),
+            credentials: 'same-origin'
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.user.is_staff) {
+            localStorage.setItem('isAdmin', 'true');
+            closeLoginModal();
+            showAdminMode();
+        } else if (data.success && !data.user.is_staff) {
+            errorBox.textContent = '❌ У вас нет прав администратора';
+            errorBox.classList.remove('hidden');
+        } else {
+            errorBox.textContent = '❌ ' + (data.error || 'Неверный логин или пароль');
+            errorBox.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Ошибка входа:', error);
+        errorBox.textContent = '❌ Ошибка соединения с сервером';
         errorBox.classList.remove('hidden');
     }
+}
+
+// Функция для получения CSRF токена из cookie
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
 }
 
 // Переключение в режим админа
@@ -638,10 +727,30 @@ function showGuestMode() {
     document.getElementById('admin-menu').classList.add('hidden');
 }
 
-// Выход
-function logout() {
-    localStorage.removeItem('isAdmin');
-    showGuestMode();
+async function logout() {
+    try {
+        const csrfToken = getCookie('csrftoken');
+
+        const response = await fetch('/api/auth/logout/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+            localStorage.removeItem('isAdmin');
+            showGuestMode();
+        } else {
+            console.error('Ошибка выхода:', response.status);
+        }
+    } catch (error) {
+        console.error('Ошибка выхода:', error);
+        // Всё равно выходим на фронтенде
+        localStorage.removeItem('isAdmin');
+        showGuestMode();
+    }
 }
 
 // Действия из меню админа (пока заглушки — подключим, когда будет бэкенд)
@@ -652,6 +761,79 @@ function adminAction(action) {
         alert('✏️ Редактирование сервисов\n\nЭта функция будет доступна после подключения бэкенда. Мы будем использовать стандартную админку Django.');
     }
 }
+        // Открыть модалку отзыва
+function openReviewModal() {
+    if (!currentService) {
+        alert('Сначала выберите сервис');
+        return;
+    }
+    document.getElementById('review-modal').classList.remove('hidden');
+    document.getElementById('reviewForm').reset();
+}
+
+// Закрыть модалку отзыва
+function closeReviewModal() {
+    document.getElementById('review-modal').classList.add('hidden');
+}
+        // Отправка отзыва
+async function submitReview(e) {
+    e.preventDefault();
+
+    if (!currentService) {
+        alert('Сначала выберите сервис');
+        return;
+    }
+
+    const data = {
+        service: currentService.id,
+        author: document.getElementById('review-author').value.trim(),
+        text: document.getElementById('review-text').value.trim(),
+        rating: parseInt(document.getElementById('review-rating').value),
+        date: new Date().toISOString().split('T')[0]
+    };
+
+    if (!data.author || !data.text) {
+        alert('Заполните все обязательные поля');
+        return;
+    }
+
+    try {
+        const csrfToken = getCookie('csrftoken');
+
+        const response = await fetch('/api/reviews/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(data),
+            credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+            closeReviewModal();
+
+            // Перезагружаем данные с сервера
+            await loadServicesFromAPI();
+
+            // Находим обновлённый сервис и показываем его
+            const updatedService = servicesData.find(s => s.id === currentService.id);
+            if (updatedService) {
+                showServiceDetails(updatedService);
+            }
+
+            alert('Спасибо за отзыв! 🎉');
+        } else {
+            const error = await response.json();
+            alert('Ошибка: ' + JSON.stringify(error));
+        }
+    } catch (error) {
+        console.error('Ошибка отправки отзыва:', error);
+        alert('Не удалось отправить отзыв. Попробуйте позже.');
+    }
+}
+
+
     </script>
     <!-- Модальное окно выбора точки старта -->
 <div id="route-modal" class="hidden" style="
@@ -724,6 +906,49 @@ function adminAction(action) {
                 💡 Тестовый доступ: <code>admin</code> / <code>admin</code>
             </small>
         </form>
+    </div>
+</div>
+<!-- Модальное окно для добавления отзыва -->
+<div id="review-modal" class="hidden" style="
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+">
+    <div class="bg-white rounded shadow-lg p-4" style="width: 90%; max-width: 500px;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">✍️ Оставить отзыв</h5>
+            <button class="btn-close" onclick="closeReviewModal()"></button>
+        </div>
+        <div class="modal-body">
+            <form id="reviewForm" onsubmit="submitReview(event)">
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Ваше имя *</label>
+                    <input type="text" id="review-author" class="form-control" placeholder="Иван Иванов" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Оценка *</label>
+                    <select id="review-rating" class="form-select" required>
+                        <option value="5">⭐⭐⭐⭐⭐ (5)</option>
+                        <option value="4">⭐⭐⭐⭐ (4)</option>
+                        <option value="3">⭐⭐⭐ (3)</option>
+                        <option value="2">⭐⭐ (2)</option>
+                        <option value="1">⭐ (1)</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Текст отзыва *</label>
+                    <textarea id="review-text" class="form-control" rows="3" placeholder="Расскажите о вашем опыте..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Отправить отзыв</button>
+            </form>
+        </div>
     </div>
 </div>
 </body>

@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление сервисами - КартаГид</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #map { height: 400px; }
+        .service-card { border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+        .service-card:hover { background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>🔧 Управление автосервисами</h1>
+            <div>
+                <button class="btn btn-success" onclick="openAddModal()">➕ Добавить сервис</button>
+                <a href="/" class="btn btn-secondary">← На главную</a>
+            </div>
+        </div>
+
+        <div id="services-list"></div>
+    </div>
+
+    <!-- Модальное окно добавления/редактирования -->
+    <div class="modal fade" id="serviceModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Добавить сервис</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="serviceForm">
+                        <input type="hidden" id="serviceId">
+                        <div class="row">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Название *</label>
+                                    <input type="text" class="form-control" id="serviceName" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Телефон</label>
+                                    <input type="text" class="form-control" id="servicePhone">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Адрес *</label>
+                            <input type="text" class="form-control" id="serviceAddress" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Часы работы</label>
+                            <input type="text" class="form-control" id="serviceHours">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Средний чек (₽)</label>
+                                <input type="number" class="form-control" id="serviceAvgCheck">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Координаты</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <input type="number" step="0.000001" class="form-control" id="serviceLat" placeholder="Широта" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <input type="number" step="0.000001" class="form-control" id="serviceLng" placeholder="Долгота" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="map" class="mb-3"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="saveService()">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map;
+        let tempMarker;
+        let services = [];
+        let editingId = null;
+
+        // Инициализация карты
+        function initMap() {
+            map = L.map('map').setView([55.7961, 49.1088], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
+
+            map.on('click', function(e) {
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+
+                document.getElementById('serviceLat').value = lat.toFixed(6);
+                document.getElementById('serviceLng').value = lng.toFixed(6);
+
+                if (tempMarker) {
+                    map.removeLayer(tempMarker);
+                }
+                tempMarker = L.marker([lat, lng]).addTo(map);
+            });
+        }
+
+        // Загрузка сервисов
+        async function loadServices() {
+            try {
+                const response = await fetch('/api/services/');
+                services = await response.json();
+                renderServices();
+            } catch (error) {
+                console.error('Ошибка загрузки:', error);
+                alert('Не удалось загрузить сервисы');
+            }
+        }
+
+        // Отрисовка списка
+        function renderServices() {
+            const container = document.getElementById('services-list');
+            container.innerHTML = '';
+
+            services.forEach(service => {
+                const card = document.createElement('div');
+                card.className = 'service-card';
+                card.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5>${service.name}</h5>
+                            <p class="mb-1 text-muted">📍 ${service.address}</p>
+                            <p class="mb-1 text-muted">📞 ${service.phone || 'Не указан'}</p>
+                            <p class="mb-1">⭐ ${service.rating} | 💰 ${service.avg_check} ₽</p>
+                            <small class="text-muted">Координаты: ${service.latitude}, ${service.longitude}</small>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="editService(${service.id})">✏️ Изменить</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteService(${service.id})">️ Удалить</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Открыть модалку добавления
+        function openAddModal() {
+            editingId = null;
+            document.getElementById('modalTitle').textContent = 'Добавить сервис';
+            document.getElementById('serviceForm').reset();
+            document.getElementById('serviceId').value = '';
+
+            const modal = new bootstrap.Modal(document.getElementById('serviceModal'));
+            modal.show();
+
+            setTimeout(() => {
+                if (!map) initMap();
+                map.invalidateSize();
+            }, 500);
+        }
+
+        // Редактирование сервиса
+        async function editService(id) {
+            const service = services.find(s => s.id === id);
+            if (!service) return;
+
+            editingId = id;
+            document.getElementById('modalTitle').textContent = 'Редактировать сервис';
+            document.getElementById('serviceId').value = service.id;
+            document.getElementById('serviceName').value = service.name;
+            document.getElementById('serviceAddress').value = service.address;
+            document.getElementById('servicePhone').value = service.phone || '';
+            document.getElementById('serviceHours').value = service.hours || '';
+            document.getElementById('serviceAvgCheck').value = service.avg_check;
+            document.getElementById('serviceLat').value = service.latitude;
+            document.getElementById('serviceLng').value = service.longitude;
+
+            const modal = new bootstrap.Modal(document.getElementById('serviceModal'));
+            modal.show();
+
+            // Ждём пока модальное окно откроется
+            document.getElementById('serviceModal').addEventListener('shown.bs.modal', function () {
+                setTimeout(() => {
+                    if (!map) initMap();
+                    map.invalidateSize();
+
+                    const lat = parseFloat(service.latitude);
+                    const lng = parseFloat(service.longitude);
+                    map.setView([lat, lng], 15);
+
+                    if (tempMarker) map.removeLayer(tempMarker);
+                    tempMarker = L.marker([lat, lng]).addTo(map);
+                }, 100);
+            }, { once: true });
+        }
+
+        // Сохранение сервиса
+        async function saveService() {
+            const data = {
+                name: document.getElementById('serviceName').value,
+                address: document.getElementById('serviceAddress').value,
+                phone: document.getElementById('servicePhone').value,
+                hours: document.getElementById('serviceHours').value,
+                avg_check: parseFloat(document.getElementById('serviceAvgCheck').value) || 0,
+                latitude: parseFloat(document.getElementById('serviceLat').value),
+                longitude: parseFloat(document.getElementById('serviceLng').value)
+            };
+
+            if (!data.name || !data.address || !data.latitude || !data.longitude) {
+                alert('Заполните обязательные поля: название, адрес и координаты');
+                return;
+            }
+
+            try {
+                const csrfToken = getCookie('csrftoken');
+                const url = editingId ? `/api/services-admin/${editingId}/` : '/api/services-admin/';
+                const method = editingId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify(data),
+                    credentials: 'same-origin'
+                });
+
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('serviceModal')).hide();
+                    await loadServices();
+                    alert(editingId ? 'Сервис обновлён!' : 'Сервис добавлен!');
+                } else {
+                    const error = await response.json();
+                    alert('Ошибка: ' + JSON.stringify(error));
+                }
+            } catch (error) {
+                console.error('Ошибка сохранения:', error);
+                alert('Ошибка сохранения сервиса');
+            }
+        }
+
+        // Удаление сервиса
+        async function deleteService(id) {
+            if (!confirm('Удалить этот сервис?')) return;
+
+            try {
+                const csrfToken = getCookie('csrftoken');
+                const response = await fetch(`/api/services-admin/${id}/`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (response.ok) {
+                    await loadServices();
+                    alert('Сервис удалён!');
+                } else {
+                    alert('Ошибка удаления');
+                }
+            } catch (error) {
+                console.error('Ошибка удаления:', error);
+                alert('Ошибка удаления сервиса');
+            }
+        }
+
+        // Получение CSRF токена
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Загрузка при старте
+        loadServices();
+        // Загрузка отзывов
+        async function loadReviews() {
+            const serviceId = document.getElementById('serviceSelect').value;
+            if (!serviceId) {
+                document.getElementById('addReviewBtn').disabled = true;
+                document.getElementById('reviews-list').innerHTML = '';
+                return;
+            }
+
+            document.getElementById('addReviewBtn').disabled = false;
+
+            try {
+                const response = await fetch(`/api/services/${serviceId}/`);
+                const service = await response.json();
+
+                renderReviews(service.reviews || []);
+            } catch (error) {
+                console.error('Ошибка загрузки отзывов:', error);
+            }
+        }
+
+        // Отрисовка отзывов
+        function renderReviews(reviews) {
+            const container = document.getElementById('reviews-list');
+
+            if (reviews.length === 0) {
+                container.innerHTML = '<p class="text-muted">Отзывов пока нет</p>';
+                return;
+            }
+
+            container.innerHTML = reviews.map(review => `
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>${review.author}</strong>
+                                <span class="text-warning ms-2">${'⭐'.repeat(review.rating)}</span>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary me-1" onclick="editReview('${review.id}')">✏️</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteReview('${review.id}')">🗑️</button>
+                            </div>
+                        </div>
+                        <p class="mb-1 mt-2">${review.text}</p>
+                        <small class="text-muted">${review.date}</small>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Открыть модалку добавления отзыва
+        function openAddReviewModal() {
+            const serviceId = document.getElementById('serviceSelect').value;
+            if (!serviceId) {
+                alert('Сначала выберите сервис');
+                return;
+            }
+
+            document.getElementById('reviewModalTitle').textContent = 'Добавить отзыв';
+            document.getElementById('reviewForm').reset();
+            document.getElementById('reviewId').value = '';
+            document.getElementById('reviewServiceId').value = serviceId;
+            document.getElementById('reviewDate').valueAsDate = new Date();
+
+            new bootstrap.Modal(document.getElementById('reviewModal')).show();
+        }
+
+        // Редактирование отзыва
+        function editReview(id) {
+            // Пока заглушка - нужно будет доработать API для отзывов
+            alert('Редактирование отзыва ID: ' + id + '\n(Функция будет добавлена)');
+        }
+
+        // Удаление отзыва
+        async function deleteReview(id) {
+            if (!confirm('Удалить этот отзыв?')) return;
+
+            try {
+                const csrfToken = getCookie('csrftoken');
+                const response = await fetch(`/api/reviews/${id}/`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (response.ok) {
+                    await loadReviews();
+                    alert('Отзыв удалён!');
+                } else {
+                    alert('Ошибка удаления отзыва');
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                alert('Ошибка удаления отзыва');
+            }
+        }
+
+        // Сохранение отзыва
+        async function saveReview() {
+            const data = {
+                service: parseInt(document.getElementById('reviewServiceId').value),
+                author: document.getElementById('reviewAuthor').value,
+                text: document.getElementById('reviewText').value,
+                rating: parseInt(document.getElementById('reviewRating').value),
+                date: document.getElementById('reviewDate').value
+            };
+
+            if (!data.author || !data.text || !data.date) {
+                alert('Заполните все обязательные поля');
+                return;
+            }
+
+            try {
+                const csrfToken = getCookie('csrftoken');
+                const reviewId = document.getElementById('reviewId').value;
+                const url = reviewId ? `/api/reviews/${reviewId}/` : '/api/reviews/';
+                const method = reviewId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify(data),
+                    credentials: 'same-origin'
+                });
+
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('reviewModal')).hide();
+                    await loadReviews();
+                    await loadServices(); // Перезагрузить для обновления рейтинга
+                    alert(reviewId ? 'Отзыв обновлён!' : 'Отзыв добавлен!');
+                } else {
+                    alert('Ошибка сохранения отзыва');
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                alert('Ошибка сохранения отзыва');
+            }
+        }
+
+        // Обновление заполнения выпадающего списка сервисов
+        const originalRenderServices = renderServices;
+        renderServices = function() {
+            originalRenderServices();
+
+            // Обновляем select для отзывов
+            const select = document.getElementById('serviceSelect');
+            if (select) {  // Проверяем, что элемент существует
+                select.innerHTML = '<option value="">Выберите сервис для управления отзывами</option>';
+                services.forEach(service => {
+                    const option = document.createElement('option');
+                    option.value = service.id;
+                    option.textContent = service.name;
+                    select.appendChild(option);
+                });
+            }
+        }
+    </script>
+</body>
+</html>
