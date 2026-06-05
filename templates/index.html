@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>КартаГид: Автосервисы</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet Routing Machine CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    
+    <style>
+        body, html { 
+            height: 100%; 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        }
+        
+        .content-wrapper { 
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 60px);
+        }
+        
+        .user-marker {
+            border: 3px solid #2ecc71;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            background: rgba(46, 204, 113, 0.5);
+        }
+        
+        #sidebar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 400px;
+            height: 100%;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            transition: transform 0.3s ease-in-out;
+            transform: translateX(-100%);
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        #sidebar.show {
+            transform: translateX(0);
+        }
+        
+        #map { 
+            width: 100%;
+            height: 100%; 
+        }
+        
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            line-height: 1;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .close-btn:hover {
+            background: #f1f1f1;
+        }
+        
+        .review-item {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        .review-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .review-author { font-weight: bold; font-size: 14px; }
+        .review-rating { color: #f39c12; font-size: 14px; }
+        .review-text { font-size: 13px; color: #495057; margin: 0; line-height: 1.4; }
+        .review-date { font-size: 11px; color: #6c757d; margin-top: 5px; text-align: right; }
+        
+        .spec-tag { 
+            background: #e0f7fa; 
+            color: #006064; 
+            padding: 4px 10px; 
+            border-radius: 12px; 
+            font-size: 12px; 
+            margin-right: 5px; 
+            margin-bottom: 5px; 
+            display: inline-block; 
+        }
+        
+        .hidden { display: none !important; }
+        
+        /* Скрываем стандартную атрибуцию */
+        .leaflet-control-attribution {
+            display: none !important;
+        }
+        
+        /* Перемещаем кнопки зума в правый верхний угол */
+        .leaflet-top.leaflet-left {
+            left: auto;
+            right: 10px;
+        }
+        
+        /* Скрываем панель маршрутов по умолчанию */
+        .leaflet-routing-container {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <nav class="navbar navbar-light bg-white border-bottom px-3" style="height: 60px;">
+        <span class="navbar-brand mb-0 h1">🚗 КартаГид: Автосервисы</span>
+        <div class="d-flex">
+            <input type="text" id="search-input" class="form-control me-2" placeholder="Поиск по названию или адресу..." style="width: 250px;">
+            <select id="filter-select" class="form-select me-2" style="width: 200px;">
+                <option value="">Все специализации</option>
+                <option value="Двигатель">Двигатель</option>
+                <option value="Ходовая часть">Ходовая часть</option>
+                <option value="Кузовной ремонт">Кузовной ремонт</option>
+                <option value="Шиномонтаж">Шиномонтаж</option>
+                <option value="Покраска">Покраска</option>
+                <option value="Полировка">Полировка</option>
+            </select>
+            <!-- Кнопка входа / меню админа -->
+<div id="auth-block">
+    <!-- Показывается, когда НЕ залогинен -->
+    <button id="login-btn" class="btn btn-outline-primary btn-sm" onclick="openLoginModal()">
+        🔐 Вход (Админ)
+    </button>
+    
+    <!-- Показывается, когда залогинен (скрыто по умолчанию) -->
+    <div id="admin-menu" class="dropdown hidden">
+        <button class="btn btn-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            👤 Админ
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="#" onclick="adminAction('add')">➕ Добавить сервис</a></li>
+            <li><a class="dropdown-item" href="#" onclick="adminAction('edit')">✏️ Редактировать сервисы</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="#" onclick="logout()">🚪 Выйти</a></li>
+        </ul>
+    </div>
+</div>
+        </div>
+    </nav>
+
+    <!-- Content -->
+    <div class="content-wrapper">
+        
+        <!-- Sidebar -->
+        <div id="sidebar">
+            <button class="close-btn" onclick="closePanel()">×</button>
+            
+            <!-- Default message -->
+            <div id="default-message" class="text-center text-muted mt-5">
+                <h5>Выберите автосервис на карте</h5>
+                <p class="small">Кликните на маркер, чтобы увидеть подробную информацию, средний чек и отзывы клиентов.</p>
+            </div>
+
+            <!-- Service details -->
+            <div id="service-details" class="hidden">
+                <h4 id="detail-name" class="mb-2">Название сервиса</h4>
+                <p class="text-muted mb-1 small">📍 <span id="detail-address">Адрес</span></p>
+                <p class="text-muted mb-1 small">📞 <span id="detail-phone">Телефон</span></p>
+                <p class="text-muted mb-3 small">🕒 <span id="detail-hours">Режим работы</span></p>
+
+                <h6 class="border-bottom pb-1">Специализация:</h6>
+                <div id="detail-specs" class="mb-3"></div>
+
+                <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-white rounded border shadow-sm">
+                    <div>
+                        <span class="fs-4 fw-bold text-warning">⭐ <span id="detail-rating">0.0</span></span>
+                        <span class="text-muted small">(<span id="detail-reviews-count">0</span> отзывов)</span>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted d-block">Средний чек</small>
+                        <span class="fw-bold text-success" id="detail-avg-check">0 ₽</span>
+                    </div>
+                </div>
+
+                <h6 class="border-bottom pb-1">Отзывы клиентов:</h6>
+                <div id="detail-reviews" class="mb-3" style="max-height: 300px; overflow-y: auto;">
+                </div>
+
+                <button class="btn btn-success w-100 mt-auto py-2" onclick="buildRoute()">📍 Построить маршрут от меня</button>
+            </div>
+        </div>
+
+        <!-- Map -->
+        <div id="map"></div>
+    </div>
+
+    <!-- Scripts -->
+     <!-- Bootstrap 5 JS (нужен для dropdown) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    
+    <script>
+        // Инициализация карты
+        var map = L.map('map').setView([55.7558, 37.6173], 13);
+        
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+
+        // Переменная для хранения маршрута
+        var routingControl = null;
+        var currentService = null;
+
+        // Загружаем данные из API
+        let servicesData = [];
+        let specializations = [];
+
+        async function loadServicesFromAPI() {
+            try {
+                // Загружаем сервисы
+                const servicesResponse = await fetch('/api/services/');
+                servicesData = await servicesResponse.json();
+                
+                // Загружаем специализации
+                const specsResponse = await fetch('/api/specializations/');
+                specializations = await specsResponse.json();
+                
+                // Инициализируем маркеры
+                displayMarkers(servicesData);
+                
+                // Обновляем фильтр специализаций
+                updateFilterOptions();
+                
+                console.log('Данные загружены:', servicesData.length, 'сервисов');
+            } catch (error) {
+                console.error('Ошибка загрузки данных:', error);
+                alert('Не удалось загрузить данные с сервера. Убедитесь, что Django сервер запущен на порту 8000.');
+            }
+        }
+
+        function updateFilterOptions() {
+            const filterSelect = document.getElementById('filter-select');
+            filterSelect.innerHTML = '<option value="">Все специализации</option>';
+            
+            specializations.forEach(spec => {
+                const option = document.createElement('option');
+                option.value = spec;
+                option.textContent = spec;
+                filterSelect.appendChild(option);
+            });
+        }
+
+        // Загружаем данные при загрузке страницы
+        loadServicesFromAPI();
+
+        // Массив для хранения маркеров
+        var markers = [];
+
+        function displayMarkers(services) {
+            // Очищаем старые маркеры
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            
+            // Создаем новые маркеры
+            services.forEach(service => {
+                const marker = L.marker([service.latitude, service.longitude]).addTo(map);  // ✅ ИСПРАВЛЕНО
+                marker.on('click', () => {
+                    showServiceDetails(service);
+                });
+                markers.push(marker);
+            });
+        }
+
+        // Инициализация маркеров
+        displayMarkers(servicesData);
+
+        // Поиск
+        document.getElementById('search-input').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            filterServices(searchTerm, document.getElementById('filter-select').value);
+        });
+
+        // Фильтр
+        document.getElementById('filter-select').addEventListener('change', function(e) {
+            const spec = e.target.value;
+            filterServices(document.getElementById('search-input').value.toLowerCase(), spec);
+        });
+
+        function filterServices(searchTerm, spec) {
+            const filtered = servicesData.filter(service => {
+                const matchesSearch = service.name.toLowerCase().includes(searchTerm) || 
+                                    service.address.toLowerCase().includes(searchTerm);
+                const matchesSpec = spec === '' || (service.specs && service.specs.includes(spec));
+                return matchesSearch && matchesSpec;
+            });
+            displayMarkers(filtered);
+        }
+
+        // Показ деталей сервиса
+        function showServiceDetails(service) {
+            currentService = service;
+            const sidebar = document.getElementById('sidebar');
+            
+            document.getElementById('default-message').classList.add('hidden');
+            document.getElementById('service-details').classList.remove('hidden');
+            
+            document.getElementById('detail-name').textContent = service.name;
+            document.getElementById('detail-address').textContent = service.address;
+            document.getElementById('detail-phone').textContent = service.phone;
+            document.getElementById('detail-hours').textContent = service.hours;
+            document.getElementById('detail-rating').textContent = service.rating;
+            document.getElementById('detail-reviews-count').textContent = service.reviews.length;
+            document.getElementById('detail-avg-check').textContent = service.avg_check.toLocaleString() + ' ₽';
+            
+            const specsContainer = document.getElementById('detail-specs');
+            specsContainer.innerHTML = '';
+            if (service.specs && service.specs.length > 0) {
+                service.specs.forEach(spec => {
+                    const tag = document.createElement('span');
+                    tag.className = 'spec-tag';
+                    tag.textContent = spec;
+                    specsContainer.appendChild(tag);
+                });
+            } else {
+                specsContainer.innerHTML = '<span class="text-muted small">Специализации не указаны</span>';
+            }
+            
+            const reviewsContainer = document.getElementById('detail-reviews');
+            reviewsContainer.innerHTML = '';
+            if (service.reviews.length === 0) {
+                reviewsContainer.innerHTML = '<p class="text-muted small fst-italic">Отзывов пока нет.</p>';
+            } else {
+                service.reviews.forEach(review => {
+                    const reviewDiv = document.createElement('div');
+                    reviewDiv.className = 'review-item';
+                    reviewDiv.innerHTML = `
+                        <div class="review-header">
+                            <span class="review-author">${review.author}</span>
+                            <span class="review-rating">⭐ ${review.rating}/5</span>
+                        </div>
+                        <p class="review-text">"${review.text}"</p>
+                        <div class="review-date">${review.date}</div>
+                    `;
+                    reviewsContainer.appendChild(reviewDiv);
+                });
+            }
+            
+            sidebar.classList.add('show');
+        }
+
+        // Закрытие панели
+        function closePanel() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.remove('show');
+            
+            setTimeout(() => {
+                document.getElementById('service-details').classList.add('hidden');
+                document.getElementById('default-message').classList.remove('hidden');
+            }, 300);
+            
+            // Удаляем маршрут при закрытии
+            if (routingControl) {
+                map.removeControl(routingControl);
+                routingControl = null;
+            }
+        }
+
+        // Клик по карте закрывает панель
+        map.on('click', () => {
+            closePanel();
+        });
+
+// Глобальная переменная для режима выбора точки
+var selectStartPointMode = false;
+var startPointMarker = null;
+
+// Замени функцию buildRoute на эту:
+function buildRoute() {
+    if (!currentService) return;
+    
+    // Показываем модальное окно выбора способа
+    document.getElementById('route-modal').classList.remove('hidden');
+}
+
+// Закрытие модального окна
+function closeRouteModal() {
+    document.getElementById('route-modal').classList.add('hidden');
+}
+
+// Включение режима выбора точки на карте
+function enableMapSelection() {
+    closeRouteModal();
+    
+    selectStartPointMode = true;
+    
+    // Меняем курсор
+    map.getContainer().style.cursor = 'crosshair';
+    
+    // Показываем подсказку
+    const hint = document.createElement('div');
+    hint.id = 'route-hint';
+    hint.className = 'alert alert-info';
+    hint.style.cssText = 'position: absolute; top: 70px; left: 50%; transform: translateX(-50%); z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.2);';
+    hint.innerHTML = `
+        <strong>📍 Выберите точку старта на карте</strong><br>
+        <small>Кликните в любое место на карте</small>
+        <button class="btn btn-sm btn-outline-secondary ms-3" onclick="disableMapSelection()">Отмена</button>
+    `;
+    document.querySelector('.content-wrapper').appendChild(hint);
+    
+    // Добавляем обработчик клика по карте (один раз)
+    map.once('click', function(e) {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+        
+        // Строим маршрут от выбранной точки
+        buildRouteFromCoords(lat, lng, 'Выбранная точка');
+        
+        // Выключаем режим выбора
+        disableMapSelection();
+    });
+}
+
+// Выключение режима выбора точки
+function disableMapSelection() {
+    selectStartPointMode = false;
+    map.getContainer().style.cursor = '';
+    
+    // Удаляем подсказку
+    const hint = document.getElementById('route-hint');
+    if (hint) hint.remove();
+}
+
+// Функция построения маршрута от координат
+function buildRouteFromCoords(startLat, startLng, startName) {
+    // Удаляем старый маршрут если есть
+    if (routingControl) {
+        map.removeControl(routingControl);
+        routingControl = null;
+    }
+    
+    // Удаляем старый маркер точки старта
+    if (startPointMarker) {
+        map.removeLayer(startPointMarker);
+    }
+    
+    // Добавляем маркер точки старта
+    const startIcon = L.divIcon({
+        className: 'user-marker',
+        iconSize: [20, 20],
+        html: '🚗'
+    });
+    
+    startPointMarker = L.marker([service.latitude, service.longitude], {icon: startIcon})
+        .addTo(map)
+        .bindPopup('🚩 Отсюда')
+        .openPopup();
+    
+    // Находим маркер сервиса
+    const serviceMarker = markers.find(m => 
+        m.getLatLng().lat === parseFloat(currentService.latitude) && 
+        m.getLatLng().lng === parseFloat(currentService.longitude)
+    );
+    
+    // Показываем оба маркера на карте
+    const group = new L.featureGroup([startPointMarker, serviceMarker]);
+    map.fitBounds(group.getBounds().pad(0.2));
+    
+    console.log('Создание маршрута от', startName, 'до', currentService.name);
+    
+    // Создаем маршрут
+    routingControl = L.Routing.control({
+        waypoints: [
+            L.latLng(startLat, startLng),
+            L.latLng(currentService.lat, currentService.lng)
+        ],
+        routeWhileDragging: false,
+        addWaypoints: false,
+        draggableWaypoints: false,
+        fitSelectedRoutes: false,
+        show: false,
+        language: 'ru',
+        router: L.Routing.osrmv1({
+            serviceUrl: 'https://router.project-osrm.org/route/v1',
+            profile: 'car'
+        }),
+        lineOptions: {
+            styles: [{color: '#2ecc71', opacity: 0.8, weight: 5}]
+        }
+    })
+    .on('routesfound', function(e) {
+        const routes = e.routes;
+        const summary = routes[0].summary;
+        
+        const time = Math.round(summary.totalTime / 60);
+        const distance = (summary.totalDistance / 1000).toFixed(1);
+        
+        // Показываем инфо в панели
+        const routeInfo = document.createElement('div');
+        routeInfo.className = 'alert alert-success mt-2';
+        routeInfo.innerHTML = `
+            <strong>🚗 Маршрут построен!</strong><br>
+            📏 Расстояние: ${distance} км<br>
+            ⏱️ Время в пути: ${time} мин
+        `;
+        
+        const detailsDiv = document.getElementById('service-details');
+        const existingAlert = detailsDiv.querySelector('.alert-success');
+        if (existingAlert) existingAlert.remove();
+        detailsDiv.insertBefore(routeInfo, detailsDiv.firstChild);
+    })
+    .on('routingerror', function(e) {
+        console.error('Ошибка маршрутизации:', e);
+        alert('Не удалось построить маршрут. Попробуйте выбрать другую точку.');
+    })
+    .addTo(map);
+}
+
+// Функция использования геолокации
+function useGeolocation() {
+    closeRouteModal();
+    
+    if (!navigator.geolocation) {
+        alert('Ваш браузер не поддерживает геолокацию.');
+        return;
+    }
+    
+    const modalBody = document.querySelector('#route-modal .modal-body');
+    const originalContent = modalBody.innerHTML;
+    modalBody.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-success" role="status"></div><p class="mt-2">Определение местоположения...</p></div>';
+    
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            const userLat = position.coords.latitude;
+            const userLng = position.coords.longitude;
+            
+            buildRouteFromCoords(userLat, userLng, 'Моё местоположение');
+            
+            // Восстанавливаем содержимое модального окна
+            modalBody.innerHTML = originalContent;
+        },
+        function(error) {
+            // Восстанавливаем содержимое модального окна
+            modalBody.innerHTML = originalContent;
+            
+            let msg = 'Не удалось определить местоположение. ';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    msg += 'Разрешите доступ к геолокации или выберите точку на карте.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    msg += 'Информация недоступна. Выберите точку на карте.';
+                    break;
+                case error.TIMEOUT:
+                    msg += 'Время ожидания истекло. Выберите точку на карте.';
+                    break;
+            }
+            alert(msg);
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        }
+    );
+}
+// ============ АВТОРИЗАЦИЯ АДМИНА ============
+
+// Проверка при загрузке страницы — вдруг уже залогинен
+(function checkAuthOnLoad() {
+    if (localStorage.getItem('isAdmin') === 'true') {
+        showAdminMode();
+    }
+})();
+
+// Открыть модалку входа
+function openLoginModal() {
+    document.getElementById('login-modal').classList.remove('hidden');
+    document.getElementById('login-error').classList.add('hidden');
+    document.getElementById('login-input').value = '';
+    document.getElementById('password-input').value = '';
+    setTimeout(() => document.getElementById('login-input').focus(), 100);
+}
+
+// Закрыть модалку входа
+function closeLoginModal() {
+    document.getElementById('login-modal').classList.add('hidden');
+}
+
+// Обработка формы входа
+function handleLogin(event) {
+    event.preventDefault(); // чтобы страница не перезагружалась
+    
+    const login = document.getElementById('login-input').value.trim();
+    const password = document.getElementById('password-input').value;
+    const errorBox = document.getElementById('login-error');
+    
+    // ⚠️ ВРЕМЕННАЯ проверка — потом заменим на запрос к Django API
+    if (login === 'admin' && password === 'admin') {
+        localStorage.setItem('isAdmin', 'true');
+        closeLoginModal();
+        showAdminMode();
+    } else {
+        errorBox.textContent = '❌ Неверный логин или пароль';
+        errorBox.classList.remove('hidden');
+    }
+}
+
+// Переключение в режим админа
+function showAdminMode() {
+    document.getElementById('login-btn').classList.add('hidden');
+    document.getElementById('admin-menu').classList.remove('hidden');
+}
+
+// Переключение в режим гостя
+function showGuestMode() {
+    document.getElementById('login-btn').classList.remove('hidden');
+    document.getElementById('admin-menu').classList.add('hidden');
+}
+
+// Выход
+function logout() {
+    localStorage.removeItem('isAdmin');
+    showGuestMode();
+}
+
+// Действия из меню админа (пока заглушки — подключим, когда будет бэкенд)
+function adminAction(action) {
+    if (action === 'add') {
+        alert('➕ Добавление сервиса\n\nЭта функция будет доступна после подключения бэкенда на Django. Там мы сделаем форму с выбором координат кликом по карте.');
+    } else if (action === 'edit') {
+        alert('✏️ Редактирование сервисов\n\nЭта функция будет доступна после подключения бэкенда. Мы будем использовать стандартную админку Django.');
+    }
+}
+    </script>
+    <!-- Модальное окно выбора точки старта -->
+<div id="route-modal" class="hidden" style="
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+">
+    <div class="bg-white rounded shadow-lg p-4" style="width: 90%; max-width: 450px;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">🚗 Построение маршрута</h5>
+            <button class="btn-close" onclick="closeRouteModal()"></button>
+        </div>
+        <div class="modal-body">
+            <h6 class="text-muted mb-3">Выберите точку старта:</h6>
+            <div class="d-grid gap-2">
+                <button class="btn btn-outline-primary btn-lg py-3" onclick="enableMapSelection()">
+                    📍 Выбрать на карте
+                </button>
+                <button class="btn btn-outline-success btn-lg py-3" onclick="useGeolocation()">
+                    🌍 Моё текущее местоположение
+                </button>
+            </div>
+        </div>
+        <small class="text-muted d-block mt-3 text-center">
+            💡 Самый удобный способ — выбрать точку на карте
+        </small>
+    </div>
+</div>
+<!-- Модальное окно входа админа -->
+<div id="login-modal" class="hidden" style="
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+">
+    <div class="bg-white rounded shadow-lg p-4" style="width: 90%; max-width: 400px;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">🔐 Вход в панель администратора</h5>
+            <button class="btn-close" onclick="closeLoginModal()"></button>
+        </div>
+        
+        <form onsubmit="handleLogin(event)">
+            <div class="mb-3">
+                <label class="form-label small text-muted">Логин</label>
+                <input type="text" id="login-input" class="form-control" placeholder="admin" required autocomplete="username">
+            </div>
+            <div class="mb-3">
+                <label class="form-label small text-muted">Пароль</label>
+                <input type="password" id="password-input" class="form-control" placeholder="••••••" required autocomplete="current-password">
+            </div>
+            
+            <div id="login-error" class="alert alert-danger hidden py-2 small"></div>
+            
+            <button type="submit" class="btn btn-primary w-100">Войти</button>
+            
+            <small class="text-muted d-block mt-3 text-center">
+                💡 Тестовый доступ: <code>admin</code> / <code>admin</code>
+            </small>
+        </form>
+    </div>
+</div>
+</body>
+</html>
