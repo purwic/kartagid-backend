@@ -11,19 +11,143 @@
         #map { height: 400px; }
         .service-card { border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
         .service-card:hover { background: #f8f9fa; }
+
+        /* Фикс для select на мобильных */
+        .container {
+            overflow: visible !important;
+        }
+
+        #serviceSelect {
+            width: 100% !important;
+            min-width: 0 !important;
+        }
+
+        /* Скрываем атрибуцию карты */
+        .leaflet-control-attribution {
+            display: none !important;
+        }
+
+        /* ============ АДАПТИВНОСТЬ ============ */
+
+        @media (max-width: 768px) {
+            /* Заголовок и кнопки */
+            .header-controls {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 10px;
+            }
+
+            .header-controls h1 {
+                font-size: 1.5rem !important;
+                margin-bottom: 0;
+            }
+
+            .header-buttons {
+                width: 100%;
+                display: flex;
+                gap: 10px;
+            }
+
+            .header-buttons .btn {
+                flex: 1;
+                text-align: center;
+            }
+
+            /* Карточки сервисов */
+            .service-card .card-content {
+                flex-direction: column !important;
+            }
+
+            .service-card .card-actions {
+                width: 100%;
+                margin-top: 10px;
+                display: flex;
+                gap: 10px;
+            }
+
+            .service-card .card-actions .btn {
+                flex: 1;
+            }
+
+            /* Телефон не переносится */
+            .phone-text {
+                white-space: nowrap;
+            }
+
+            /* Координаты */
+            .coords-text {
+                word-break: break-all;
+                font-size: 0.85rem;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>🔧 Управление автосервисами</h1>
-            <div>
-                <button class="btn btn-success" onclick="openAddModal()">➕ Добавить сервис</button>
-                <a href="/" class="btn btn-secondary">← На главную</a>
+        <div class="d-flex justify-content-between align-items-center mb-4 header-controls">
+            <h1 class="mb-0">Управление сервисами</h1>
+            <div class="header-buttons">
+                <button class="btn btn-success" onclick="openAddModal()">Добавить сервис</button>
+                <a href="/" class="btn btn-secondary">Назад</a>
             </div>
         </div>
 
         <div id="services-list"></div>
+
+        <hr class="my-4">
+        <h2>Управление отзывами</h2>
+        <div class="mb-3">
+            <label class="form-label">Выберите сервис:</label>
+            <select id="serviceSelect" class="form-select" onchange="loadReviews()">
+                <option value="">-- Выберите сервис --</option>
+            </select>
+        </div>
+        <button id="addReviewBtn" class="btn btn-success mb-3" onclick="openAddReviewModal()" disabled>Добавить отзыв</button>
+        <div id="reviews-list"></div>
+    </div>
+
+    <!-- Модальное окно отзыва -->
+    <div class="modal fade" id="reviewModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="reviewModalTitle">Добавить отзыв</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="reviewForm">
+                        <input type="hidden" id="reviewId">
+                        <input type="hidden" id="reviewServiceId">
+                        <div class="mb-3">
+                            <label class="form-label">Автор *</label>
+                            <input type="text" class="form-control" id="reviewAuthor" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Оценка *</label>
+                            <select class="form-select" id="reviewRating" required>
+                                <option value="5">⭐⭐⭐⭐⭐ (5)</option>
+                                <option value="4">⭐⭐⭐⭐ (4)</option>
+                                <option value="3">⭐⭐⭐ (3)</option>
+                                <option value="2">⭐⭐ (2)</option>
+                                <option value="1">⭐ (1)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Текст отзыва *</label>
+                            <textarea class="form-control" id="reviewText" rows="3" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Дата *</label>
+                            <input type="date" class="form-control" id="reviewDate" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="saveReview()">Сохранить</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Модальное окно добавления/редактирования -->
@@ -49,18 +173,24 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Адрес *</label>
-                            <input type="text" class="form-control" id="serviceAddress" required>
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <label class="form-label">Адрес *</label>
+                                <input type="text" class="form-control" id="serviceAddress" required>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Средний чек (₽)</label>
+                                <input type="number" class="form-control" id="serviceAvgCheck">
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Часы работы</label>
                             <input type="text" class="form-control" id="serviceHours">
                         </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Средний чек (₽)</label>
-                                <input type="number" class="form-control" id="serviceAvgCheck">
+                        <div class="mb-3">
+                            <label class="form-label">Специализации</label>
+                            <div id="specs-checkboxes" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                                <div class="text-muted small">Загрузка...</div>
                             </div>
                         </div>
                         <div class="mb-3">
@@ -137,17 +267,17 @@
                 const card = document.createElement('div');
                 card.className = 'service-card';
                 card.innerHTML = `
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
+                    <div class="d-flex justify-content-between align-items-start card-content">
+                        <div class="flex-grow-1">
                             <h5>${service.name}</h5>
-                            <p class="mb-1 text-muted">📍 ${service.address}</p>
-                            <p class="mb-1 text-muted">📞 ${service.phone || 'Не указан'}</p>
-                            <p class="mb-1">⭐ ${service.rating} | 💰 ${service.avg_check} ₽</p>
-                            <small class="text-muted">Координаты: ${service.latitude}, ${service.longitude}</small>
+                            <p class="mb-1 text-muted">${service.address}</p>
+                            <p class="mb-1 text-muted phone-text">${service.phone || 'Не указан'}</p>
+                            <p class="mb-1">${service.rating} | ${service.avg_check} ₽</p>
+                            <small class="text-muted coords-text">Координаты: ${service.latitude}, ${service.longitude}</small>
                         </div>
-                        <div>
-                            <button class="btn btn-sm btn-outline-primary me-2" onclick="editService(${service.id})">✏️ Изменить</button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteService(${service.id})">️ Удалить</button>
+                        <div class="card-actions ms-3">
+                            <button class="btn btn-sm btn-outline-primary" onclick="editService(${service.id})">Изменить</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteService(${service.id})">Удалить</button>
                         </div>
                     </div>
                 `;
@@ -161,6 +291,9 @@
             document.getElementById('modalTitle').textContent = 'Добавить сервис';
             document.getElementById('serviceForm').reset();
             document.getElementById('serviceId').value = '';
+
+            // Сбрасываем чекбоксы специализаций
+            renderSpecsCheckboxes([]);
 
             const modal = new bootstrap.Modal(document.getElementById('serviceModal'));
             modal.show();
@@ -186,6 +319,9 @@
             document.getElementById('serviceAvgCheck').value = service.avg_check;
             document.getElementById('serviceLat').value = service.latitude;
             document.getElementById('serviceLng').value = service.longitude;
+
+            // Загружаем специализации
+            renderSpecsCheckboxes(service.specs || []);
 
             const modal = new bootstrap.Modal(document.getElementById('serviceModal'));
             modal.show();
@@ -215,7 +351,8 @@
                 hours: document.getElementById('serviceHours').value,
                 avg_check: parseFloat(document.getElementById('serviceAvgCheck').value) || 0,
                 latitude: parseFloat(document.getElementById('serviceLat').value),
-                longitude: parseFloat(document.getElementById('serviceLng').value)
+                longitude: parseFloat(document.getElementById('serviceLng').value),
+                specs: getSelectedSpecs()
             };
 
             if (!data.name || !data.address || !data.latitude || !data.longitude) {
@@ -294,8 +431,51 @@
             return cookieValue;
         }
 
+        let specializations = [];
+
+        // Загрузка специализаций
+        async function loadSpecializations() {
+            try {
+                const response = await fetch('/api/specializations/');
+                specializations = await response.json();
+                renderSpecsCheckboxes();
+            } catch (error) {
+                console.error('Ошибка загрузки специализаций:', error);
+            }
+        }
+
+        // Отрисовка чекбоксов специализаций
+        function renderSpecsCheckboxes(selectedSpecs = []) {
+            const container = document.getElementById('specs-checkboxes');
+            if (specializations.length === 0) {
+                container.innerHTML = '<div class="text-muted small">Специализации не добавлены</div>';
+                return;
+            }
+            container.innerHTML = specializations.map(spec => `
+                <div class="form-check">
+                    <input class="form-check-input spec-checkbox" type="checkbox" value="${spec}" id="spec-${spec}">
+                    <label class="form-check-label" for="spec-${spec}">${spec}</label>
+                </div>
+            `).join('');
+
+            // Отмечаем выбранные
+            selectedSpecs.forEach(spec => {
+                const checkbox = document.getElementById(`spec-${spec}`);
+                if (checkbox) checkbox.checked = true;
+            });
+        }
+
+        // Получение выбранных специализаций
+        function getSelectedSpecs() {
+            const checkboxes = document.querySelectorAll('.spec-checkbox:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
         // Загрузка при старте
+        loadSpecializations();
         loadServices();
+        let currentReviews = [];
+
         // Загрузка отзывов
         async function loadReviews() {
             const serviceId = document.getElementById('serviceSelect').value;
@@ -311,7 +491,8 @@
                 const response = await fetch(`/api/services/${serviceId}/`);
                 const service = await response.json();
 
-                renderReviews(service.reviews || []);
+                currentReviews = service.reviews || [];
+                renderReviews(currentReviews);
             } catch (error) {
                 console.error('Ошибка загрузки отзывов:', error);
             }
@@ -365,8 +546,18 @@
 
         // Редактирование отзыва
         function editReview(id) {
-            // Пока заглушка - нужно будет доработать API для отзывов
-            alert('Редактирование отзыва ID: ' + id + '\n(Функция будет добавлена)');
+            const review = currentReviews.find(r => r.id == id);
+            if (!review) return;
+
+            document.getElementById('reviewModalTitle').textContent = 'Редактировать отзыв';
+            document.getElementById('reviewId').value = review.id;
+            document.getElementById('reviewServiceId').value = review.service;
+            document.getElementById('reviewAuthor').value = review.author;
+            document.getElementById('reviewText').value = review.text;
+            document.getElementById('reviewRating').value = review.rating;
+            document.getElementById('reviewDate').value = review.date;
+
+            new bootstrap.Modal(document.getElementById('reviewModal')).show();
         }
 
         // Удаление отзыва

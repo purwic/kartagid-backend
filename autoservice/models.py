@@ -9,6 +9,12 @@ class Service(models.Model):
     hours = models.CharField("Часы работы", max_length=255, blank=True)
     avg_check = models.IntegerField("Средний чек", default=0)
     rating = models.FloatField("Рейтинг", default=0.0)
+    specs = models.ManyToManyField(
+        "Specialization",
+        verbose_name="Специализации",
+        blank=True,
+        related_name="services"
+    )
 
     latitude = models.DecimalField("Широта", max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField("Долгота", max_digits=9, decimal_places=6, null=True, blank=True)
@@ -53,18 +59,10 @@ class Review(models.Model):
         related_name="reviews",
         verbose_name="Сервис"
     )
-    author = models.CharField("Автор", max_length=100)
-    text = models.TextField("Текст отзыва")
+    author = models.CharField("Автор", max_length=100, blank=True)
+    text = models.TextField("Текст отзыва", blank=True, null=True)
     rating = models.IntegerField("Оценка", choices=[(i, i) for i in range(1, 6)])
     date = models.DateField("Дата")
-
-    def recalculate_rating(self):
-        """Пересчитывает средний рейтинг из отзывов"""
-        from django.db.models import Avg
-        avg = self.reviews.aggregate(Avg('rating'))['rating__avg']
-        if avg:
-            self.rating = round(avg, 1)
-            self.save()
 
     class Meta:
         verbose_name = "Отзыв"

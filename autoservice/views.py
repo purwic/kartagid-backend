@@ -28,11 +28,43 @@ class ServiceCreateUpdateViewSet(viewsets.ModelViewSet):
 
 class ServiceCreateSerializer(serializers.ModelSerializer):
     """Сериализатор для создания/обновления сервиса"""
+    specs = serializers.ListField(
+        child=serializers.CharField(),
+        write_only=True,
+        required=False
+    )
 
     class Meta:
         model = Service
         fields = ['id', 'name', 'address', 'phone', 'hours',
-                  'avg_check', 'rating', 'latitude', 'longitude']
+                  'avg_check', 'rating', 'latitude', 'longitude', 'specs']
+
+    def create(self, validated_data):
+        specs_data = validated_data.pop('specs', [])
+        service = Service.objects.create(**validated_data)
+
+        # Привязываем специализации
+        for spec_name in specs_data:
+            spec, created = Specialization.objects.get_or_create(name=spec_name)
+            service.specs.add(spec)
+
+        return service
+
+    def update(self, instance, validated_data):
+        specs_data = validated_data.pop('specs', [])
+
+        # Обновляем основные поля
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Обновляем специализации
+        instance.specs.clear()
+        for spec_name in specs_data:
+            spec, created = Specialization.objects.get_or_create(name=spec_name)
+            instance.specs.add(spec)
+
+        return instance
 
 class ServiceViewSet(viewsets.ReadOnlyModelViewSet):
     """API endpoint для получения списка сервисов"""

@@ -26,12 +26,25 @@
             height: calc(100vh - 60px);
         }
         
-        .user-marker {
-            border: 3px solid #2ecc71;
+        /* стили для маркеров маршрута */
+        .route-marker {
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            background: rgba(46, 204, 113, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            border: 3px solid white;
+        }
+        .route-marker-start {
+            background: #2ecc71;
+        }
+        .route-marker-end {
+            background: #e74c3c;
         }
         
         #sidebar {
@@ -114,71 +127,147 @@
             display: none !important;
         }
         
-        /* Перемещаем кнопки зума в правый верхний угол */
-        .leaflet-top.leaflet-left {
-            left: auto;
-            right: 10px;
+        /* Полностью скрываем кнопки зума */
+        .leaflet-control-zoom {
+            display: none !important;
         }
         
         /* Скрываем панель маршрутов по умолчанию */
         .leaflet-routing-container {
             display: none !important;
         }
+
+        /* для телефонов */
+
+        @media (max-width: 768px) {
+
+            nav.navbar {
+                padding: 0 10px !important;
+                flex-wrap: nowrap;
+            }
+
+            /* скрываем логотип */
+            .navbar-brand {
+                display: none !important;
+            }
+
+            /* поиск на мобильных */
+            .position-relative.ms-2 {
+                width: auto !important;
+                flex: 1;
+                min-width: 0;
+                margin-left: 0 !important;
+                margin-right: 8px !important;
+            }
+
+            #search-input {
+                font-size: 14px !important;
+                padding: 6px 12px !important;
+                width: 100%;
+            }
+
+            /* кнопка админа меньше */
+            #auth-block .btn {
+                font-size: 0.75rem !important;
+                padding: 0.25rem 0.5rem !important;
+            }
+
+            /* сайдбар на всю ширину */
+            #sidebar {
+                width: 100% !important;
+            }
+
+            /* панель маршрута */
+            #route-info-panel {
+                width: 200px !important;
+                padding: 10px !important;
+                font-size: 0.8rem !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            /* на очень маленьких экранах */
+            .navbar-brand {
+                font-size: 0.8rem !important;
+            }
+
+            #search-input {
+                font-size: 13px !important;
+                padding: 5px 10px !important;
+            }
+
+            #search-input::placeholder {
+                font-size: 12px !important;
+            }
+        }
     </style>
 </head>
 <body>
     {% csrf_token %}
 
-    <!-- Header -->
+    <!-- headrr -->
     <nav class="navbar navbar-light bg-white border-bottom px-3" style="height: 60px;">
-        <span class="navbar-brand mb-0 h1">🚗 КартаГид: Автосервисы</span>
-        <div class="d-flex">
-            <input type="text" id="search-input" class="form-control me-2" placeholder="Поиск по названию или адресу..." style="width: 250px;">
-            <select id="filter-select" class="form-select me-2" style="width: 200px;">
-                <option value="">Все специализации</option>
-                <option value="Двигатель">Двигатель</option>
-                <option value="Ходовая часть">Ходовая часть</option>
-                <option value="Кузовной ремонт">Кузовной ремонт</option>
-                <option value="Шиномонтаж">Шиномонтаж</option>
-                <option value="Покраска">Покраска</option>
-                <option value="Полировка">Полировка</option>
-            </select>
-            <!-- Кнопка входа / меню админа -->
-<div id="auth-block">
-    <!-- Показывается, когда НЕ залогинен -->
-    <button id="login-btn" class="btn btn-outline-primary btn-sm" onclick="openLoginModal()">
-        🔐 Вход (Админ)
+        <span class="navbar-brand mb-0 h1">КартаГид: Автосервисы</span>
+        <div class="d-flex align-items-stretch flex-grow-1" style="height: 40px; min-width: 0;">
+            <div class="position-relative ms-2 me-2" style="flex: 1; min-width: 0;">
+                <input type="text" id="search-input" class="form-control h-100 w-100"
+                       placeholder="🔍 Поиск: название, адрес, специализация..."
+                       autocomplete="off"
+                       style="width: 100%;">
+
+                <!-- выпадающий список резулььатов поиска -->
+                <div id="search-results" class="hidden" style="
+                    position: absolute;
+                    top: 100%;
+                    left: 0;
+                    right: 0;
+                    background: white;
+                    border: 1px solid #dee2e6;
+                    border-top: none;
+                    border-radius: 0 0 8px 8px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    max-height: 400px;
+                    overflow-y: auto;
+                    z-index: 2000;
+                "></div>
+            </div>
+
+            <!-- кнопка входа / меню админа -->
+            <div id="auth-block" class="d-flex align-items-stretch" style="margin-left: auto;">
+    <!-- показывается, когда не залогинен -->
+    <button id="login-btn" class="btn btn-outline-primary h-100" onclick="openLoginModal()">
+         Вход (Админ)
     </button>
     
-    <!-- Показывается, когда залогинен (скрыто по умолчанию) -->
-    <div id="admin-menu" class="dropdown hidden">
-        <button class="btn btn-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-            👤 Админ
+    <!-- показывается, когда залогинен (скрыто по умолчанию) -->
+    <div id="admin-menu" class="dropdown hidden h-100">
+        <button class="btn btn-primary h-100 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            Вход выполнен
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
-            <li><a class="dropdown-item" href="/manage/">🔧 Управление сервисами</a></li>
+            <li><a class="dropdown-item" href="/manage/">Управление сервисами</a></li>
             <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item text-danger" href="#" onclick="logout()">🚪 Выйти</a></li>
+            <li><a class="dropdown-item text-danger" href="#" onclick="logout()">Выйти</a></li>
         </ul>
     </div>
 </div>
         </div>
     </nav>
 
-    <!-- Content -->
+    <!-- content -->
     <div class="content-wrapper">
         
-        <!-- Sidebar -->
+        <!-- sidebar -->
         <div id="sidebar">
             <button class="close-btn" onclick="closePanel()">×</button>
             
-            <!-- Default message -->
+            <!-- default message -->
             <div id="default-message" class="text-center text-muted mt-5">
                 <h5>Выберите автосервис на карте</h5>
                 <p class="small">Кликните на маркер, чтобы увидеть подробную информацию, средний чек и отзывы клиентов.</p>
             </div>
 
-            <!-- Service details -->
+            <!-- service details -->
             <div id="service-details" class="hidden">
                 <h4 id="detail-name" class="mb-2">Название сервиса</h4>
                 <p class="text-muted mb-1 small">📍 <span id="detail-address">Адрес</span></p>
@@ -210,18 +299,40 @@
             </div>
         </div>
 
-        <!-- Map -->
+        <!-- карта -->
         <div id="map"></div>
+
+        <!-- панель маршрута -->
+        <div id="route-info-panel" class="hidden" style="
+            position: absolute;
+            top: 80px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            width: 260px;
+        ">
+            <h6 class="mb-2 fw-bold">🚗 Маршрут построен</h6>
+            <p class="mb-1 small text-muted">📏 Расстояние: <span id="route-distance" class="fw-bold text-dark">0</span> км</p>
+            <p class="mb-3 small text-muted">⏱️ Время в пути: <span id="route-time" class="fw-bold text-dark">0</span> мин</p>
+            <button class="btn btn-sm btn-outline-primary w-100 mb-2" onclick="openInYandexMaps()">
+                🗺️ Открыть в Яндекс Картах
+            </button>
+            <button class="btn btn-sm btn-outline-danger w-100" onclick="clearRoute()">
+                🗑️ Сбросить маршрут
+            </button>
+        </div>
     </div>
 
-    <!-- Scripts -->
-     <!-- Bootstrap 5 JS (нужен для dropdown) -->
+    <!-- scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
     
     <script>
-        // Пытаемся восстановить позицию из localStorage
+        // пытаемся восстановить позицию из localStorage
         const savedView = localStorage.getItem('mapView');
         let initialLat = 55.7961; // Казань
         let initialLng = 49.1088; // Казань
@@ -246,7 +357,7 @@
             maxZoom: 20
         }).addTo(map);
 
-        // Сохраняем позицию карты при перемещении и зуме
+        // сохраняем позицию карты при перемещении и зуме
         function saveMapView() {
             const center = map.getCenter();
             const zoom = map.getZoom();
@@ -257,67 +368,52 @@
             }));
         }
 
-        // Сохраняем при перемещении карты
+        // сохраняем при перемещении карты
         map.on('moveend', saveMapView);
 
-        // Сохраняем при зуме
+        // сохраняем при зуме
         map.on('zoomend', saveMapView);
 
-        // Переменная для хранения маршрута
+        // переменная для хранения маршрута
         var routingControl = null;
         var currentService = null;
 
-        // Загружаем данные из API
+        // загружаем данные из api
         let servicesData = [];
         let specializations = [];
 
         async function loadServicesFromAPI() {
             try {
-                // Загружаем сервисы
+                // загружаем сервисы
                 const servicesResponse = await fetch('/api/services/');
                 servicesData = await servicesResponse.json();
                 
-                // Загружаем специализации
+                //загружаем специализации
                 const specsResponse = await fetch('/api/specializations/');
                 specializations = await specsResponse.json();
                 
-                // Инициализируем маркеры
+                // инициализируем маркеры
                 displayMarkers(servicesData);
-                
-                // Обновляем фильтр специализаций
-                updateFilterOptions();
-                
-                console.log('Данные загружены:', servicesData.length, 'сервисов');
+
             } catch (error) {
                 console.error('Ошибка загрузки данных:', error);
                 alert('Не удалось загрузить данные с сервера. Убедитесь, что Django сервер запущен на порту 8000.');
             }
         }
 
-        function updateFilterOptions() {
-            const filterSelect = document.getElementById('filter-select');
-            filterSelect.innerHTML = '<option value="">Все специализации</option>';
-            
-            specializations.forEach(spec => {
-                const option = document.createElement('option');
-                option.value = spec;
-                option.textContent = spec;
-                filterSelect.appendChild(option);
-            });
-        }
 
-        // Загружаем данные при загрузке страницы
+        // загружаем данные при загрузке страницы
         loadServicesFromAPI();
 
-        // Массив для хранения маркеров
+        // массив для хранения маркеров
         var markers = [];
 
         function displayMarkers(services) {
-            // Очищаем старые маркеры
+            // очищаем старые маркеры
             markers.forEach(marker => map.removeLayer(marker));
             markers = [];
             
-            // Создаем новые маркеры
+            // создаем новые маркеры
             services.forEach(service => {
                 const marker = L.marker([service.latitude, service.longitude]).addTo(map);  // ✅ ИСПРАВЛЕНО
                 marker.on('click', () => {
@@ -330,26 +426,290 @@
         // Инициализация маркеров
         displayMarkers(servicesData);
 
-        // Поиск
-        document.getElementById('search-input').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            filterServices(searchTerm, document.getElementById('filter-select').value);
+        // ============ УМНЫЙ ПОИСК ============
+
+        const searchInput = document.getElementById('search-input');
+        const searchResults = document.getElementById('search-results');
+
+        // Поиск по Enter
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                performSearch();
+            }
         });
 
-        // Фильтр
-        document.getElementById('filter-select').addEventListener('change', function(e) {
-            const spec = e.target.value;
-            filterServices(document.getElementById('search-input').value.toLowerCase(), spec);
+        // Закрытие результатов при клике вне
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#search-input') && !e.target.closest('#search-results')) {
+                searchResults.classList.add('hidden');
+            }
         });
 
-        function filterServices(searchTerm, spec) {
-            const filtered = servicesData.filter(service => {
-                const matchesSearch = service.name.toLowerCase().includes(searchTerm) || 
-                                    service.address.toLowerCase().includes(searchTerm);
-                const matchesSpec = spec === '' || (service.specs && service.specs.includes(spec));
-                return matchesSearch && matchesSpec;
+        // Расстояние Левенштейна (количество опечаток)
+        function levenshteinDistance(str1, str2) {
+            const m = str1.length;
+            const n = str2.length;
+            const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+
+            for (let i = 0; i <= m; i++) dp[i][0] = i;
+            for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+            for (let i = 1; i <= m; i++) {
+                for (let j = 1; j <= n; j++) {
+                    if (str1[i - 1] === str2[j - 1]) {
+                        dp[i][j] = dp[i - 1][j - 1];
+                    } else {
+                        dp[i][j] = 1 + Math.min(
+                            dp[i - 1][j],      // удаление
+                            dp[i][j - 1],      // вставка
+                            dp[i - 1][j - 1]   // замена
+                        );
+                    }
+                }
+            }
+            return dp[m][n];
+        }
+
+        // Проверка нечёткого совпадения с допустимыми опечатками
+        function isFuzzyMatch(query, text, maxDistance = 2) {
+            query = query.toLowerCase();
+            text = text.toLowerCase();
+
+            // Если запрос очень короткий (1-2 буквы), ищем просто вхождение
+            if (query.length <= 2) {
+                return text.includes(query);
+            }
+
+            // Если query короче текста, проверяем схожесть с началом слова
+            if (query.length < text.length) {
+                // Проверяем начало текста той же длины что и query
+                const textStart = text.substr(0, query.length);
+                const distance = levenshteinDistance(query, textStart);
+                if (distance <= maxDistance) return true;
+
+                // Также проверяем, содержится ли query в тексте с опечатками
+                for (let i = 0; i <= text.length - query.length; i++) {
+                    const substring = text.substr(i, query.length);
+                    const dist = levenshteinDistance(query, substring);
+                    if (dist <= maxDistance) return true;
+                }
+            } else {
+                // Если query длиннее или равен тексту
+                const distance = levenshteinDistance(query, text);
+                if (distance <= maxDistance) return true;
+
+                // Проверяем все подстроки
+                for (let i = 0; i <= text.length - Math.min(query.length, text.length); i++) {
+                    const len = Math.min(query.length, text.length - i);
+                    const substring = text.substr(i, len);
+                    const dist = levenshteinDistance(query.substr(0, len), substring);
+                    if (dist <= maxDistance) return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Подсчёт релевантности для нечёткого поиска
+        function calculateFuzzyScore(query, text) {
+            query = query.toLowerCase();
+            text = text.toLowerCase();
+
+            let bestScore = 0;
+
+            // Проверяем точное совпадение
+            if (text === query) return 10;
+
+            // Проверяем совпадение с начала
+            if (text.startsWith(query)) return 8;
+
+            // Проверяем все подстроки
+            for (let i = 0; i <= text.length - query.length; i++) {
+                const substring = text.substr(i, query.length);
+                const distance = levenshteinDistance(query, substring);
+                const similarity = 1 - (distance / Math.max(query.length, substring.length));
+                const score = similarity * 5;
+                if (score > bestScore) bestScore = score;
+            }
+
+            return Math.max(0, bestScore);
+        }
+
+        // Умный поиск
+        function performSearch() {
+            const query = searchInput.value.trim().toLowerCase();
+
+            // Фильтруем только валидные сервисы (с координатами, названием и адресом)
+            const validServices = servicesData.filter(s => {
+                const hasCoords = s.latitude !== null && s.latitude !== undefined &&
+                                  s.longitude !== null && s.longitude !== undefined;
+                const hasName = s.name && typeof s.name === 'string' && s.name.trim().length > 0;
+                const hasAddress = s.address && typeof s.address === 'string' && s.address.trim().length > 0;
+
+                return hasCoords && hasName && hasAddress;
             });
-            displayMarkers(filtered);
+
+            // Если пусто — показать все валидные
+            if (!query) {
+                showSearchResults(validServices, 'Все автосервисы');
+                return;
+            }
+
+            // Разбиваем запрос на слова
+            const words = query.split(/\s+/).filter(w => w.length > 0);
+
+            // Считаем релевантность для каждого сервиса
+            const scored = validServices.map(service => {
+                let score = 0;
+                const name = service.name || '';
+                const address = service.address || '';
+                const specs = service.specs || [];
+
+                const searchText = [name, address, ...specs].join(' ').toLowerCase();
+
+                words.forEach(word => {
+                    // Точное совпадение
+                    if (searchText.includes(word)) {
+                        score += 10;
+                    }
+
+                    // Нечёткое совпадение (fuzzy)
+                    if (isFuzzyMatch(word, name)) {
+                        score += calculateFuzzyScore(word, name) * 2;
+                    }
+                    if (isFuzzyMatch(word, address)) {
+                        score += calculateFuzzyScore(word, address);
+                    }
+
+                    // Проверка специализаций
+                    specs.forEach(spec => {
+                        if (isFuzzyMatch(word, spec)) {
+                            score += calculateFuzzyScore(word, spec) * 1.5;
+                        }
+                    });
+
+                    // Бонус за совпадение с начала названия
+                    if (name.toLowerCase().startsWith(word)) {
+                        score += 5;
+                    }
+                });
+
+                return { service, score };
+            });
+
+            // Разделяем на найденные и не найденные
+            const found = scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score);
+            const notFound = scored.filter(s => s.score === 0)
+                .sort((a, b) => b.service.rating - a.service.rating);
+
+            if (found.length > 0) {
+                // Показываем найденные
+                showSearchResults(
+                    found.map(s => s.service),
+                    `Найдено: ${found.length}`,
+                    null
+                );
+            } else {
+                // Ничего не найдено — показываем подсказку
+                showSearchResults(
+                    [],
+                    `По запросу "${query}" ничего не найдено. Попробуйте:`,
+                    notFound.slice(0, 5).map(s => s.service),  // ✅ Извлекаем только сервисы
+                    'Популярные автосервисы:'
+                );
+            }
+        }
+
+        // Показ результатов поиска
+        function showSearchResults(results, title, fallbackResults = null, fallbackTitle = null) {
+            searchResults.innerHTML = '';
+
+            // Заголовок
+            const header = document.createElement('div');
+            header.className = 'px-3 py-2 bg-light border-bottom small text-muted fw-bold';
+            header.textContent = title;
+            searchResults.appendChild(header);
+
+            // Результаты
+            if (results.length > 0) {
+                results.forEach(service => {
+                    searchResults.appendChild(createResultCard(service));
+                });
+            } else if (!fallbackResults) {
+                const empty = document.createElement('div');
+                empty.className = 'px-3 py-3 text-muted small text-center';
+                empty.textContent = 'Ничего не найдено';
+                searchResults.appendChild(empty);
+            }
+
+            // Fallback (если ничего не нашли — показываем остальные)
+            if (fallbackResults && fallbackResults.length > 0) {
+                const divider = document.createElement('div');
+                divider.className = 'px-3 py-2 bg-light border-top border-bottom small text-muted fst-italic';
+                divider.textContent = fallbackTitle || 'Возможно, вы искали:';
+                searchResults.appendChild(divider);
+
+                fallbackResults.slice(0, 10).forEach(service => {
+                    searchResults.appendChild(createResultCard(service, true));
+                });
+            }
+
+            searchResults.classList.remove('hidden');
+        }
+
+        // Создание карточки результата
+        function createResultCard(service, isFallback = false) {
+            const card = document.createElement('div');
+            card.className = 'search-result-item px-3 py-2 border-bottom';
+            card.style.cssText = 'cursor: pointer; transition: background 0.2s;' + (isFallback ? ' opacity: 0.7;' : '');
+
+            // Безопасное получение данных с проверкой на undefined
+            const name = service.name || 'Без названия';
+            const address = service.address || 'Адрес не указан';
+            const rating = service.rating || 0;
+            const avgCheck = service.avg_check || 0;
+            const lat = parseFloat(service.latitude);
+            const lng = parseFloat(service.longitude);
+            const specs = service.specs || [];
+
+            card.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="fw-bold small">${name}</div>
+                        <div class="text-muted" style="font-size: 12px;">📍 ${address}</div>
+                        ${specs.length > 0 ?
+                            `<div class="mt-1">${specs.map(s =>
+                                `<span class="spec-tag" style="font-size: 10px; padding: 2px 6px;">${s}</span>`
+                            ).join('')}</div>` : ''}
+                    </div>
+                    <div class="text-end ms-2">
+                        <div class="text-warning small">⭐ ${rating}</div>
+                        <div class="text-muted" style="font-size: 11px;">${avgCheck} ₽</div>
+                    </div>
+                </div>
+            `;
+
+            card.addEventListener('mouseenter', () => card.style.background = '#f8f9fa');
+            card.addEventListener('mouseleave', () => card.style.background = 'white');
+
+            card.addEventListener('click', () => {
+                // Проверяем, что координаты валидны
+                if (isNaN(lat) || isNaN(lng)) {
+                    alert('У этого сервиса не заданы координаты');
+                    return;
+                }
+
+                // Центрируем карту на сервисе
+                map.setView([lat, lng], 16);
+                // Открываем карточку сервиса
+                showServiceDetails(service);
+                // Закрываем результаты поиска
+                searchResults.classList.add('hidden');
+                searchInput.value = '';
+            });
+
+            return card;
         }
 
         // Показ деталей сервиса
@@ -402,33 +762,37 @@
             }
             
             sidebar.classList.add('show');
+
+            // На мобильных устройствах центрируем карту на сервисе
+            if (window.innerWidth <= 768) {
+                setTimeout(() => {
+                    map.setView([service.latitude, service.longitude], map.getZoom());
+                }, 350);
+            }
         }
 
-        // Закрытие панели
+        // Закрытие панели (маршрут при этом сохраняется на карте)
         function closePanel() {
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.remove('show');
-            
+
             setTimeout(() => {
                 document.getElementById('service-details').classList.add('hidden');
                 document.getElementById('default-message').classList.remove('hidden');
             }, 300);
-            
-            // Удаляем маршрут при закрытии
-            if (routingControl) {
-                map.removeControl(routingControl);
-                routingControl = null;
-            }
         }
 
-        // Клик по карте закрывает панель
+        // Клик по карте закрывает боковую панель, ТОЛЬКО если маршрут ещё не построен
         map.on('click', () => {
-            closePanel();
+            if (!routingControl) {
+                closePanel();
+            }
         });
+
+
 
 // Глобальная переменная для режима выбора точки
 var selectStartPointMode = false;
-var startPointMarker = null;
 
 // Замени функцию buildRoute на эту:
 function buildRoute() {
@@ -495,44 +859,17 @@ function buildRouteFromCoords(startLat, startLng, startName) {
         routingControl = null;
     }
     
-    // Удаляем старый маркер точки старта
-    if (startPointMarker) {
-        map.removeLayer(startPointMarker);
-    }
-    
-    // Добавляем маркер точки старта
-    const startIcon = L.divIcon({
-        className: 'user-marker',
-        iconSize: [20, 20],
-        html: '🚗'
-    });
-    
-    startPointMarker = L.marker([startLat, startLng], {icon: startIcon})
-        .addTo(map)
-        .bindPopup('🚩 Отсюда')
-        .openPopup();
-    
-    // Находим маркер сервиса
-    const serviceMarker = markers.find(m => 
-        m.getLatLng().lat === parseFloat(currentService.latitude) && 
-        m.getLatLng().lng === parseFloat(currentService.longitude)
-    );
-    
-    // Показываем оба маркера на карте
-    const group = new L.featureGroup([startPointMarker, serviceMarker]);
-    map.fitBounds(group.getBounds().pad(0.2));
-    
     console.log('Создание маршрута от', startName, 'до', currentService.name);
-    
-    // Создаем маршрут
+
+    // Создаем маршрут с кастомными маркерами A и B
     routingControl = L.Routing.control({
         waypoints: [
             L.latLng(startLat, startLng),
             L.latLng(parseFloat(currentService.latitude), parseFloat(currentService.longitude))
         ],
-        routeWhileDragging: false,
+        routeWhileDragging: true,
         addWaypoints: false,
-        draggableWaypoints: false,
+        draggableWaypoints: true,
         fitSelectedRoutes: false,
         show: false,
         language: 'ru',
@@ -541,7 +878,24 @@ function buildRouteFromCoords(startLat, startLng, startName) {
             profile: 'car'
         }),
         lineOptions: {
-            styles: [{color: '#2ecc71', opacity: 0.8, weight: 5}]
+            styles: [{color: '#3498db', opacity: 0.8, weight: 6}]
+        },
+        // Кастомные маркеры A и B
+        createMarker: function(waypointIndex, waypoint, n) {
+            const isStart = waypointIndex === 0;
+            const markerHtml = isStart ? 'A' : 'B';
+            const markerClass = isStart ? 'route-marker-start' : 'route-marker-end';
+
+            const icon = L.divIcon({
+                className: 'route-marker ' + markerClass,
+                iconSize: [30, 30],
+                html: markerHtml
+            });
+
+            return L.marker(waypoint.latLng, {
+                icon: icon,
+                draggable: true
+            });
         }
     })
     .on('routesfound', function(e) {
@@ -551,25 +905,60 @@ function buildRouteFromCoords(startLat, startLng, startName) {
         const time = Math.round(summary.totalTime / 60);
         const distance = (summary.totalDistance / 1000).toFixed(1);
         
-        // Показываем инфо в панели
-        const routeInfo = document.createElement('div');
-        routeInfo.className = 'alert alert-success mt-2';
-        routeInfo.innerHTML = `
-            <strong>🚗 Маршрут построен!</strong><br>
-            📏 Расстояние: ${distance} км<br>
-            ⏱️ Время в пути: ${time} мин
-        `;
-        
-        const detailsDiv = document.getElementById('service-details');
-        const existingAlert = detailsDiv.querySelector('.alert-success');
-        if (existingAlert) existingAlert.remove();
-        detailsDiv.insertBefore(routeInfo, detailsDiv.firstChild);
+        // Показываем инфо в плавающей панели на карте
+        document.getElementById('route-distance').textContent = distance;
+        document.getElementById('route-time').textContent = time;
+        document.getElementById('route-info-panel').classList.remove('hidden');
     })
     .on('routingerror', function(e) {
         console.error('Ошибка маршрутизации:', e);
         alert('Не удалось построить маршрут. Попробуйте выбрать другую точку.');
     })
     .addTo(map);
+}
+
+// Функция очистки маршрута
+function clearRoute() {
+    if (routingControl) {
+        map.removeControl(routingControl);
+        routingControl = null;
+    }
+    // Скрываем плавающую панель маршрута
+    document.getElementById('route-info-panel').classList.add('hidden');
+}
+
+// Открыть маршрут в Яндекс Картах
+function openInYandexMaps() {
+    if (!currentService) return;
+
+    // Получаем координаты начала маршрута
+    let startLat, startLng;
+
+    if (routingControl && routingControl.getWaypoints) {
+        const waypoints = routingControl.getWaypoints();
+        if (waypoints && waypoints.length > 0 && waypoints[0].latLng) {
+            startLat = waypoints[0].latLng.lat;
+            startLng = waypoints[0].latLng.lng;
+        }
+    }
+
+    // Координаты точки назначения
+    const endLat = parseFloat(currentService.latitude);
+    const endLng = parseFloat(currentService.longitude);
+
+    // Формируем URL для Яндекс Карт
+    // Используем формат: rtext=откуда~куда
+    // Если есть точка старта — передаем координаты, иначе оставляем пустым
+    let routeUrl;
+    if (startLat && startLng) {
+        routeUrl = `https://yandex.ru/maps/?rtext=${startLat},${startLng}~${endLat},${endLng}&rtt=auto`;
+    } else {
+        // Если точки старта нет — открываем просто точку назначения
+        routeUrl = `https://yandex.ru/maps/?pt=${endLng},${endLat}&z=16&l=map`;
+    }
+
+    // Открываем в новой вкладке
+    window.open(routeUrl, '_blank');
 }
 
 // Функция использования геолокации
@@ -699,7 +1088,7 @@ async function handleLogin(event) {
     }
 }
 
-// Функция для получения CSRF токена из cookie
+// Функция для получения CSRF токена
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -710,6 +1099,13 @@ function getCookie(name) {
                 cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
                 break;
             }
+        }
+    }
+    // Если токен не найден в cookie, пробуем взять из meta тега
+    if (!cookieValue) {
+        const metaTag = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (metaTag) {
+            cookieValue = metaTag.value;
         }
     }
     return cookieValue;
@@ -741,15 +1137,14 @@ async function logout() {
 
         if (response.ok) {
             localStorage.removeItem('isAdmin');
-            showGuestMode();
+            window.location.reload();
         } else {
             console.error('Ошибка выхода:', response.status);
         }
     } catch (error) {
         console.error('Ошибка выхода:', error);
-        // Всё равно выходим на фронтенде
         localStorage.removeItem('isAdmin');
-        showGuestMode();
+        window.location.reload();
     }
 }
 
@@ -792,8 +1187,8 @@ async function submitReview(e) {
         date: new Date().toISOString().split('T')[0]
     };
 
-    if (!data.author || !data.text) {
-        alert('Заполните все обязательные поля');
+    if (!data.rating) {
+        alert('Выберите оценку');
         return;
     }
 
@@ -901,10 +1296,6 @@ async function submitReview(e) {
             <div id="login-error" class="alert alert-danger hidden py-2 small"></div>
             
             <button type="submit" class="btn btn-primary w-100">Войти</button>
-            
-            <small class="text-muted d-block mt-3 text-center">
-                💡 Тестовый доступ: <code>admin</code> / <code>admin</code>
-            </small>
         </form>
     </div>
 </div>
@@ -929,12 +1320,13 @@ async function submitReview(e) {
         <div class="modal-body">
             <form id="reviewForm" onsubmit="submitReview(event)">
                 <div class="mb-3">
-                    <label class="form-label small text-muted">Ваше имя *</label>
-                    <input type="text" id="review-author" class="form-control" placeholder="Иван Иванов" required>
+                    <label class="form-label small text-muted">Ваше имя</label>
+                    <input type="text" id="review-author" class="form-control" placeholder="Иван Иванов">
                 </div>
                 <div class="mb-3">
                     <label class="form-label small text-muted">Оценка *</label>
                     <select id="review-rating" class="form-select" required>
+                        <option value="">Выберите оценку</option>
                         <option value="5">⭐⭐⭐⭐⭐ (5)</option>
                         <option value="4">⭐⭐⭐⭐ (4)</option>
                         <option value="3">⭐⭐⭐ (3)</option>
@@ -943,8 +1335,8 @@ async function submitReview(e) {
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small text-muted">Текст отзыва *</label>
-                    <textarea id="review-text" class="form-control" rows="3" placeholder="Расскажите о вашем опыте..." required></textarea>
+                    <label class="form-label small text-muted">Текст отзыва</label>
+                    <textarea id="review-text" class="form-control" rows="3" placeholder="Расскажите о вашем опыте... (необязательно)"></textarea>
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Отправить отзыв</button>
             </form>
