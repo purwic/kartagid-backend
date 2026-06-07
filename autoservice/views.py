@@ -11,11 +11,11 @@ from django.shortcuts import render
 
 @staff_member_required
 def service_manager_view(request):
-    """Страница управления сервисами (только для админов)"""
+    """страница управления сервисами (только для админов)"""
     return render(request, 'service_manager.html')
 
 class ServiceCreateUpdateViewSet(viewsets.ModelViewSet):
-    """API для создания, обновления и удаления сервисов (только для админов)"""
+    """api для создания, обновления и удаления сервисов (для админов)"""
     queryset = Service.objects.all()
     serializer_class = ServiceSerializer
     permission_classes = [permissions.IsAdminUser]
@@ -27,7 +27,7 @@ class ServiceCreateUpdateViewSet(viewsets.ModelViewSet):
 
 
 class ServiceCreateSerializer(serializers.ModelSerializer):
-    """Сериализатор для создания/обновления сервиса"""
+    """сериализатор для создания/обновления сервиса"""
     specs = serializers.ListField(
         child=serializers.CharField(),
         write_only=True,
@@ -43,7 +43,7 @@ class ServiceCreateSerializer(serializers.ModelSerializer):
         specs_data = validated_data.pop('specs', [])
         service = Service.objects.create(**validated_data)
 
-        # Привязываем специализации
+        # привязываем специализации
         for spec_name in specs_data:
             spec, created = Specialization.objects.get_or_create(name=spec_name)
             service.specs.add(spec)
@@ -53,12 +53,12 @@ class ServiceCreateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         specs_data = validated_data.pop('specs', [])
 
-        # Обновляем основные поля
+        # обновляем основные поля
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        # Обновляем специализации
+        # обновляем специализации
         instance.specs.clear()
         for spec_name in specs_data:
             spec, created = Specialization.objects.get_or_create(name=spec_name)
@@ -67,14 +67,14 @@ class ServiceCreateSerializer(serializers.ModelSerializer):
         return instance
 
 class ServiceViewSet(viewsets.ReadOnlyModelViewSet):
-    """API endpoint для получения списка сервисов"""
+    """api endpoint для получения сервисов"""
     queryset = Service.objects.all()
     serializer_class = ServiceSerializer
 
     def get_queryset(self):
         queryset = super().get_queryset()
 
-        # Поиск по названию или адресу
+        # поиск по названию или адресу
         search = self.request.query_params.get('search', '')
         if search:
             queryset = queryset.filter(name__icontains=search) | \
@@ -84,7 +84,7 @@ class ServiceViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class SpecializationViewSet(viewsets.ReadOnlyModelViewSet):
-    """API endpoint для списка специализаций"""
+    """api endpoint для специализаций"""
     queryset = Specialization.objects.all()
 
     def list(self, request):
@@ -95,7 +95,7 @@ class SpecializationViewSet(viewsets.ReadOnlyModelViewSet):
 @csrf_protect
 @require_POST
 def api_login(request):
-    """API endpoint для входа"""
+    """api endpoint для входа"""
     import json
     data = json.loads(request.body)
     username = data.get('username')
@@ -119,12 +119,12 @@ def api_login(request):
         }, status=401)
 
 def api_logout(request):
-    """API endpoint для выхода"""
+    """api endpoint для выхода"""
     logout(request)
     return JsonResponse({'success': True})
 
 def api_check_auth(request):
-    """Проверка статуса авторизации"""
+    """проверка статуса авторизации"""
     if request.user.is_authenticated:
         return JsonResponse({
             'authenticated': True,
@@ -138,7 +138,7 @@ def api_check_auth(request):
 
 
 class ReviewViewSet(viewsets.ModelViewSet):
-    """API для управления отзывами"""
+    """api для управления отзывами"""
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
 

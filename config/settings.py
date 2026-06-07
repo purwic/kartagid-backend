@@ -19,10 +19,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
+# на стадии продакшена, изменить эти две строчки
 SECRET_KEY = 'django-insecure-)lgl$0rso_+mj456x8dc%+7tcj=x3r$m3g179p2oircho%$^ui'
-
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = []
@@ -121,14 +119,15 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.0/howto/static-files/
+# static files css, javascript, images
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 
-STATIC_URL = 'static/'
-
-# CORS настройки (чтобы фронтенд мог обращаться к бэкенду)
+# cors настройки
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5500",  # Live Server (твой HTML файл)
+    "http://localhost:5500",
     "http://127.0.0.1:5500",
 ]
 
