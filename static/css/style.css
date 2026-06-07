@@ -122,21 +122,21 @@ body, html {
     display: none !important;
 }
 
-/* адаптивность */
+/* в случае мобильного экрана вертиклаьного */
 
 @media (max-width: 768px) {
-    /* на мобильных хедер компактнее */
+    /*хедер компактнее */
     nav.navbar {
         padding: 0 10px !important;
         flex-wrap: nowrap;
     }
 
-    /* скрываем логотип на мобильных */
+    /* скрываем логотип */
     .navbar-brand {
         display: none !important;
     }
 
-    /* поиск на мобильных */
+    /* поиск */
     .position-relative.ms-2 {
         width: auto !important;
         flex: 1;
@@ -151,7 +151,6 @@ body, html {
         width: 100%;
     }
 
-    /* кнопка админа компактнее */
     #auth-block .btn {
         font-size: 0.75rem !important;
-        padding: 0
+        padding: 1

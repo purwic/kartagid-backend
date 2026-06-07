@@ -23,11 +23,16 @@
     <nav class="navbar navbar-light bg-white border-bottom px-3" style="height: 60px;">
         <span class="navbar-brand mb-0 h1">КартаГид: Автосервисы</span>
         <div class="d-flex align-items-stretch flex-grow-1" style="height: 40px; min-width: 0;">
-            <div class="position-relative ms-2 me-2" style="flex: 1; min-width: 0;">
-                <input type="text" id="search-input" class="form-control h-100 w-100"
+            <div class="position-relative ms-2 me-2 d-flex" style="flex: 1; min-width: 0;">
+                <input type="text" id="search-input" class="form-control h-100"
                        placeholder="🔍 Поиск: название, адрес, специализация..."
                        autocomplete="off"
-                       style="width: 100%;">
+                       style="flex: 1; min-width: 0;">
+
+                <!-- кнопка фильтра -->
+                <button id="filter-btn" class="btn btn-outline-secondary h-100 ms-1" onclick="openFilterModal()" title="Фильтры">
+                    ⚙️
+                </button>
 
                 <!-- выпадающий список результатов поиска -->
                 <div id="search-results" class="hidden" style="
@@ -49,7 +54,7 @@
             <!-- кнопка входа / меню админа -->
             <div id="auth-block" class="d-flex align-items-stretch" style="margin-left: auto;">
                 <button id="login-btn" class="btn btn-outline-primary h-100" onclick="openLoginModal()">
-                    🔐 Вход (Админ)
+                    Вход (Админ)
                 </button>
                 
                 <div id="admin-menu" class="dropdown hidden h-100">
@@ -100,7 +105,7 @@
 
                 <h6 class="border-bottom pb-1 d-flex justify-content-between align-items-center">
                     <span>Отзывы клиентов:</span>
-                    <button class="btn btn-sm btn-success" onclick="openReviewModal()">✍️ Оставить отзыв</button>
+                    <button class="btn btn-sm btn-success" onclick="openReviewModal()">Оставить отзыв</button>
                 </h6>
                 <div id="detail-reviews" class="mb-3" style="max-height: 300px; overflow-y: auto;">
                 </div>
@@ -197,7 +202,7 @@
     ">
         <div class="bg-white rounded shadow-lg p-4" style="width: 90%; max-width: 400px;">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">🔐 Вход в панель администратора</h5>
+                <h5 class="mb-0">Вход в панель администратора</h5>
                 <button class="btn-close" onclick="closeLoginModal()"></button>
             </div>
             
@@ -217,6 +222,60 @@
             </form>
         </div>
     </div>
+
+    <!-- модальное окно фильтров -->
+    <div id="filter-modal" class="hidden" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 2000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    ">
+        <div class="bg-white rounded shadow-lg p-4" style="width: 90%; max-width: 500px;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">⚙️ Фильтры поиска</h5>
+                <button class="btn-close" onclick="closeFilterModal()"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Специализация</label>
+                    <select id="filter-spec" class="form-select">
+                        <option value="">Все специализации</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Минимальный рейтинг</label>
+                    <select id="filter-rating" class="form-select">
+                        <option value="0">Любой рейтинг</option>
+                        <option value="3">⭐⭐⭐ (3+)</option>
+                        <option value="4">⭐⭐⭐⭐ (4+)</option>
+                        <option value="4.5">⭐⭐⭐⭐½ (4.5+)</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Средний чек (₽)</label>
+                    <div class="row">
+                        <div class="col-6">
+                            <input type="number" id="filter-check-min" class="form-control" placeholder="От" min="0">
+                        </div>
+                        <div class="col-6">
+                            <input type="number" id="filter-check-max" class="form-control" placeholder="До" min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-secondary flex-fill" onclick="resetFilters()">Сбросить</button>
+                <button class="btn btn-primary flex-fill" onclick="applyFilters()">Применить</button>
+            </div>
+        </div>
+    </div>
+
 
     <!-- модальное окно для добавления отзыва -->
     <div id="review-modal" class="hidden" style="

@@ -1,37 +1,33 @@
 from django.db import models
-
+from django.utils import timezone
 
 class Service(models.Model):
-    """Модель автосервиса"""
-    name = models.CharField("Название", max_length=255)
-    address = models.CharField("Адрес", max_length=500)
-    phone = models.CharField("Телефон", max_length=50, blank=True)
-    hours = models.CharField("Часы работы", max_length=255, blank=True)
-    avg_check = models.IntegerField("Средний чек", default=0)
-    rating = models.FloatField("Рейтинг", default=0.0)
+    # модель автосервиса
+    name = models.CharField(max_length=100)
+    address = models.CharField(max_length=100)
+    phone = models.CharField(max_length=20, null=True, blank=True)
+    hours = models.CharField(max_length=50, null=True, blank=True)
+    avg_check = models.IntegerField(null=True, blank=True)
+    rating = models.FloatField(null=True, blank=True)
     specs = models.ManyToManyField(
         "Specialization",
-        verbose_name="Специализации",
         blank=True,
         related_name="services"
     )
 
-    latitude = models.DecimalField("Широта", max_digits=9, decimal_places=6, null=True, blank=True)
-    longitude = models.DecimalField("Долгота", max_digits=9, decimal_places=6, null=True, blank=True)
+    # ширина и долгота
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
 
-    created_at = models.DateTimeField("Дата создания", auto_now_add=True)
-    updated_at = models.DateTimeField("Дата обновления", auto_now=True)
-
-    class Meta:
-        verbose_name = "Автосервис"
-        verbose_name_plural = "Автосервисы"
-        ordering = ["-rating"]
+    # создано и обновлено когда
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
 
     def recalculate_rating(self):
-        """Пересчитывает средний рейтинг из отзывов"""
+        # средний рейтинг считается автоматически
         from django.db.models import Avg
         avg = self.reviews.aggregate(Avg('rating'))['rating__avg']
         if avg:
@@ -40,33 +36,26 @@ class Service(models.Model):
 
 
 class Specialization(models.Model):
-    """Модель специализации (теги)"""
-    name = models.CharField("Название", max_length=100, unique=True)
-
-    class Meta:
-        verbose_name = "Специализация"
-        verbose_name_plural = "Специализации"
+    # модель специализации
+    name = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
         return self.name
 
 
 class Review(models.Model):
-    """Модель отзыва"""
+    # модель отзыва
     service = models.ForeignKey(
         Service,
         on_delete=models.CASCADE,
-        related_name="reviews",
-        verbose_name="Сервис"
+        related_name="reviews"
     )
-    author = models.CharField("Автор", max_length=100, blank=True)
-    text = models.TextField("Текст отзыва", blank=True, null=True)
-    rating = models.IntegerField("Оценка", choices=[(i, i) for i in range(1, 6)])
-    date = models.DateField("Дата")
+    author = models.CharField(max_length=100, blank=True)
+    text = models.TextField(blank=True, null=True)
+    rating = models.IntegerField(choices=[(i, i) for i in range(1, 6)])
+    date = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        verbose_name = "Отзыв"
-        verbose_name_plural = "Отзывы"
         ordering = ["-date"]
 
     def __str__(self):

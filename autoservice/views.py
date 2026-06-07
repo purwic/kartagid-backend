@@ -1,7 +1,8 @@
 from rest_framework import viewsets, serializers, permissions
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from .models import Service, Specialization, Review
-from .serializers import ServiceSerializer, ReviewSerializer
+from .serializers import ServiceSerializer, ReviewSerializer, SpecializationSerializer
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_protect
@@ -11,11 +12,11 @@ from django.shortcuts import render
 
 @staff_member_required
 def service_manager_view(request):
-    """страница управления сервисами (только для админов)"""
+    """страница управления сервисами"""
     return render(request, 'service_manager.html')
 
 class ServiceCreateUpdateViewSet(viewsets.ModelViewSet):
-    """api для создания, обновления и удаления сервисов (для админов)"""
+    """api для сервисов"""
     queryset = Service.objects.all()
     serializer_class = ServiceSerializer
     permission_classes = [permissions.IsAdminUser]
@@ -27,7 +28,7 @@ class ServiceCreateUpdateViewSet(viewsets.ModelViewSet):
 
 
 class ServiceCreateSerializer(serializers.ModelSerializer):
-    """сериализатор для создания/обновления сервиса"""
+    """сериализатор для сервиса"""
     specs = serializers.ListField(
         child=serializers.CharField(),
         write_only=True,
@@ -38,6 +39,78 @@ class ServiceCreateSerializer(serializers.ModelSerializer):
         model = Service
         fields = ['id', 'name', 'address', 'phone', 'hours',
                   'avg_check', 'rating', 'latitude', 'longitude', 'specs']
+        extra_kwargs = {
+            'phone': {'required': False, 'allow_null': True, 'allow_blank': True},
+            'hours': {'required': False, 'allow_null': True, 'allow_blank': True},
+            'avg_check': {'required': False, 'allow_null': True},
+            'rating': {'required': False, 'allow_null': True}
+        }
+
+    def validate_name(self, value):
+        """проверка названия сервиса"""
+        if not value or not value.strip():
+            raise ValidationError("Название не может быть пустым")
+        if len(value.strip()) < 3:
+            raise ValidationError("Название слишком короткое (минимум 3 символа)")
+        if len(value.strip()) > 255:
+            raise ValidationError("Название слишком длинное")
+        return value.strip()
+
+    def validate_address(self, value):
+        """проверка адреса"""
+        if not value or not value.strip():
+            raise ValidationError("Адрес не может быть пустым")
+        if len(value.strip()) < 5:
+            raise ValidationError("Адрес слишком короткий")
+        return value.strip()
+
+    def validate_phone(self, value):
+        """проверка телефона"""
+        # может быть null
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+
+        # убираем все кроме цифр и плюса
+        import re
+        cleaned = re.sub(r'[^\d+]', '', value)
+        if len(cleaned) < 10:
+            raise ValidationError("Некорректный номер телефона")
+        return value
+
+    def validate_hours(self, value):
+        """проверка часов работы"""
+        # может быть null
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        return value
+
+    def validate_avg_check(self, value):
+        """проверка среднего чека"""
+        # может быть null
+        if value is None:
+            return None
+
+        if value < 0:
+            raise ValidationError("Средний чек не может быть отрицательным")
+        if value > 1000000:
+            raise ValidationError("Средний чек слишком большой")
+        return value
+
+    def validate_latitude(self, value):
+        """проверка широты"""
+        if value is None:
+            raise ValidationError("Укажите широту")
+        if value < -90 or value > 90:
+            raise ValidationError("Широта должна быть от -90 до 90")
+        return value
+
+    def validate_longitude(self, value):
+        """проверка долготы"""
+        if value is None:
+            raise ValidationError("Укажите долготу")
+        if value < -180 or value > 180:
+            raise ValidationError("Долгота должна быть от -180 до 180")
+        return value
 
     def create(self, validated_data):
         specs_data = validated_data.pop('specs', [])
@@ -90,6 +163,13 @@ class SpecializationViewSet(viewsets.ReadOnlyModelViewSet):
     def list(self, request):
         specs = Specialization.objects.values_list('name', flat=True)
         return Response(list(specs))
+
+
+class SpecializationAdminViewSet(viewsets.ModelViewSet):
+    """api для управления специализациями"""
+    queryset = Specialization.objects.all()
+    serializer_class = SpecializationSerializer
+    permission_classes = [permissions.IsAdminUser]
 
 
 @csrf_protect

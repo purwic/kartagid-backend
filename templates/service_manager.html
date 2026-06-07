@@ -87,6 +87,7 @@
             <h1 class="mb-0">Управление сервисами</h1>
             <div class="header-buttons">
                 <button class="btn btn-success" onclick="openAddModal()">Добавить сервис</button>
+                <button class="btn btn-success" onclick="openSpecsListModal()">Специализации</button>
                 <a href="/" class="btn btn-secondary">Назад</a>
             </div>
         </div>
@@ -136,8 +137,8 @@
                             <textarea class="form-control" id="reviewText" rows="3" required></textarea>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Дата *</label>
-                            <input type="date" class="form-control" id="reviewDate" required>
+                            <label class="form-label">Дата и время *</label>
+                            <input type="datetime-local" class="form-control" id="reviewDate" required>
                         </div>
                     </form>
                 </div>
@@ -209,6 +210,50 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                     <button type="button" class="btn btn-primary" onclick="saveService()">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- модальное окно списка специализаций -->
+    <div class="modal fade" id="specsListModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Управление специализациями</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="specs-list"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" onclick="openAddSpecModal()">Добавить</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- модальное окно добавления/редактирования специализации -->
+    <div class="modal fade" id="specModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="specModalTitle">Добавить специализацию</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="specForm">
+                        <input type="hidden" id="specId">
+                        <div class="mb-3">
+                            <label class="form-label">Название *</label>
+                            <input type="text" class="form-control" id="specName" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="saveSpec()">Сохранить</button>
                 </div>
             </div>
         </div>

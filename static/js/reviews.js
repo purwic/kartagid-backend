@@ -26,8 +26,7 @@ async function submitReview(e) {
         service: currentService.id,
         author: document.getElementById('review-author').value.trim(),
         text: document.getElementById('review-text').value.trim(),
-        rating: parseInt(document.getElementById('review-rating').value),
-        date: new Date().toISOString().split('T')[0]
+        rating: parseInt(document.getElementById('review-rating').value)
     };
 
     if (!data.rating) {

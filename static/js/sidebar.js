@@ -8,11 +8,12 @@ function showServiceDetails(service) {
 
     document.getElementById('detail-name').textContent = service.name;
     document.getElementById('detail-address').textContent = service.address;
-    document.getElementById('detail-phone').textContent = service.phone;
-    document.getElementById('detail-hours').textContent = service.hours;
-    document.getElementById('detail-rating').textContent = service.rating;
-    document.getElementById('detail-reviews-count').textContent = service.reviews.length;
-    document.getElementById('detail-avg-check').textContent = service.avg_check.toLocaleString() + ' ₽';
+    document.getElementById('detail-phone').textContent = service.phone || 'Телефон не указан';
+    document.getElementById('detail-hours').textContent = service.hours || 'Часы работы не указаны';
+    document.getElementById('detail-rating').textContent = service.rating > 0 ? service.rating.toFixed(1) : '-';
+    const reviewsCount = service.reviews.length;
+    document.getElementById('detail-reviews-count').textContent = reviewsCount > 0 ? reviewsCount : 'нет';
+    document.getElementById('detail-avg-check').textContent = service.avg_check > 0 ? service.avg_check + ' ₽' : 'Не указан' ;
 
     const specsContainer = document.getElementById('detail-specs');
     specsContainer.innerHTML = '';
@@ -31,17 +32,28 @@ function showServiceDetails(service) {
     reviewsContainer.innerHTML = '';
     if (service.reviews.length === 0) {
         reviewsContainer.innerHTML = '<p class="text-muted small fst-italic">Отзывов пока нет.</p>';
+
     } else {
         service.reviews.forEach(review => {
             const reviewDiv = document.createElement('div');
             reviewDiv.className = 'review-item';
+            // форматируем дату
+            const reviewDate = new Date(review.date);
+            const formattedDate = reviewDate.toLocaleDateString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
             reviewDiv.innerHTML = `
                 <div class="review-header">
                     <span class="review-author">${review.author}</span>
                     <span class="review-rating">⭐ ${review.rating}/5</span>
                 </div>
                 <p class="review-text">${review.text}</p>
-                <div class="review-date">${review.date}</div>
+                <div class="review-date">${formattedDate}</div>
             `;
             reviewsContainer.appendChild(reviewDiv);
         });

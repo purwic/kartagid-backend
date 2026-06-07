@@ -53,7 +53,10 @@ function renderServices() {
                     <h5>${service.name}</h5>
                     <p class="mb-1 text-muted">${service.address}</p>
                     <p class="mb-1 text-muted phone-text">${service.phone || 'Не указан'}</p>
-                    <p class="mb-1">${service.rating} | ${service.avg_check} ₽</p>
+                    <p class="mb-1">
+                        ${service.rating !== null ? '⭐ ' + service.rating : 'Без рейтинга'} |
+                        ${service.avg_check !== null ? service.avg_check + ' ₽' : 'Чек не установлен'}
+                    </p>
                     <small class="text-muted coords-text">Координаты: ${service.latitude}, ${service.longitude}</small>
                 </div>
                 <div class="card-actions ms-3">
@@ -125,12 +128,20 @@ async function editService(id) {
 
 // сохранение сервиса
 async function saveService() {
+    // подготовка значений к данным
+    const avgCheckValue = document.getElementById('serviceAvgCheck').value;
+    const phoneValue = document.getElementById('servicePhone').value;
+    const hoursValue = document.getElementById('serviceHours').value;
+    const avgCheck = avgCheckValue.trim() === '' ? null : parseFloat(avgCheckValue);
+    const phoneCheck = phoneValue.trim() === '' ? null : phoneValue;
+    const hoursCheck = hoursValue.trim() === '' ? null : hoursValue;
+
     const data = {
         name: document.getElementById('serviceName').value,
         address: document.getElementById('serviceAddress').value,
-        phone: document.getElementById('servicePhone').value,
-        hours: document.getElementById('serviceHours').value,
-        avg_check: parseFloat(document.getElementById('serviceAvgCheck').value) || 0,
+        phone: phoneCheck,
+        hours: hoursCheck,
+        avg_check: avgCheck,
         latitude: parseFloat(document.getElementById('serviceLat').value),
         longitude: parseFloat(document.getElementById('serviceLng').value),
         specs: getSelectedSpecs()
@@ -159,7 +170,7 @@ async function saveService() {
         if (response.ok) {
             bootstrap.Modal.getInstance(document.getElementById('serviceModal')).hide();
             await loadServices();
-            alert(editingId ? 'Сервис обновлён!' : 'Сервис добавлен!');
+            alert(editingId ? 'Сервис обновлен' : 'Сервис добавлен');
         } else {
             const error = await response.json();
             alert('Ошибка: ' + JSON.stringify(error));
@@ -186,7 +197,7 @@ async function deleteService(id) {
 
         if (response.ok) {
             await loadServices();
-            alert('Сервис удалён!');
+            alert('Сервис удален');
         } else {
             alert('Ошибка удаления');
         }
@@ -196,7 +207,7 @@ async function deleteService(id) {
     }
 }
 
-// получение CSRF токена
+// CSRF токен
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -288,24 +299,36 @@ function renderReviews(reviews) {
         return;
     }
 
-    container.innerHTML = reviews.map(review => `
-        <div class="card mb-2">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <strong>${review.author}</strong>
-                        <span class="text-warning ms-2">${'⭐'.repeat(review.rating)}</span>
+    container.innerHTML = reviews.map(review => {
+        // форматируем дату
+        const reviewDate = new Date(review.date);
+        const formattedDate = reviewDate.toLocaleDateString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        return `
+            <div class="card mb-2">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong>${review.author}</strong>
+                            <span class="text-warning ms-2">${'⭐'.repeat(review.rating)}</span>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editReview('${review.id}')">✏️</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteReview('${review.id}')">🗑️</button>
+                        </div>
                     </div>
-                    <div>
-                        <button class="btn btn-sm btn-outline-primary me-1" onclick="editReview('${review.id}')">✏️</button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteReview('${review.id}')">🗑️</button>
-                    </div>
+                    <p class="mb-1 mt-2">${review.text}</p>
+                    <small class="text-muted">${formattedDate}</small>
                 </div>
-                <p class="mb-1 mt-2">${review.text}</p>
-                <small class="text-muted">${review.date}</small>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // открыть модалку добавления отзыва
@@ -320,7 +343,14 @@ function openAddReviewModal() {
     document.getElementById('reviewForm').reset();
     document.getElementById('reviewId').value = '';
     document.getElementById('reviewServiceId').value = serviceId;
-    document.getElementById('reviewDate').valueAsDate = new Date();
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    document.getElementById('reviewDate').value = `${year}-${month}-${day}T${hours}:${minutes}`;
 
     new bootstrap.Modal(document.getElementById('reviewModal')).show();
 }
@@ -336,7 +366,13 @@ function editReview(id) {
     document.getElementById('reviewAuthor').value = review.author;
     document.getElementById('reviewText').value = review.text;
     document.getElementById('reviewRating').value = review.rating;
-    document.getElementById('reviewDate').value = review.date;
+    const reviewDate = new Date(review.date);
+    const year = reviewDate.getFullYear();
+    const month = String(reviewDate.getMonth() + 1).padStart(2, '0');
+    const day = String(reviewDate.getDate()).padStart(2, '0');
+    const hours = String(reviewDate.getHours()).padStart(2, '0');
+    const minutes = String(reviewDate.getMinutes()).padStart(2, '0');
+    document.getElementById('reviewDate').value = `${year}-${month}-${day}T${hours}:${minutes}`;
 
     new bootstrap.Modal(document.getElementById('reviewModal')).show();
 }
@@ -369,12 +405,16 @@ async function deleteReview(id) {
 
 // сохранение отзыва
 async function saveReview() {
+    // конвертируем дату из datetime-local в ISO формат
+    const dateValue = document.getElementById('reviewDate').value;
+    const isoDate = dateValue ? new Date(dateValue).toISOString() : null;
+
     const data = {
         service: parseInt(document.getElementById('reviewServiceId').value),
         author: document.getElementById('reviewAuthor').value,
         text: document.getElementById('reviewText').value,
         rating: parseInt(document.getElementById('reviewRating').value),
-        date: document.getElementById('reviewDate').value
+        date: isoDate
     };
 
     if (!data.author || !data.date) {
@@ -419,7 +459,7 @@ renderServices = function() {
 
     // обновляем select для отзывов
     const select = document.getElementById('serviceSelect');
-    if (select) {  // проверчем, что элемент существует
+    if (select) { // проверчем, что элемент существует
         select.innerHTML = '<option value="">Выберите сервис для управления отзывами</option>';
         services.forEach(service => {
             const option = document.createElement('option');
@@ -427,5 +467,139 @@ renderServices = function() {
             option.textContent = service.name;
             select.appendChild(option);
         });
+    }
+}
+
+// управление специализациями
+let specializationsAdmin = [];
+
+// открытие модального окна со списком специализаций
+function openSpecsListModal() {
+    loadSpecializationsAdmin();
+    new bootstrap.Modal(document.getElementById('specsListModal')).show();
+}
+
+// загрузка специализаций для админки
+async function loadSpecializationsAdmin() {
+    try {
+        const response = await fetch('/api/specializations-admin/');
+        specializationsAdmin = await response.json();
+        renderSpecsAdmin();
+    } catch (error) {
+        console.error('ошибка загрузки специализаций:', error);
+    }
+}
+
+// отрисовка списка специализаций
+function renderSpecsAdmin() {
+    const container = document.getElementById('specs-list');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (specializationsAdmin.length === 0) {
+        container.innerHTML = '<p class="text-muted">Специализации не добавлены</p>';
+        return;
+    }
+
+    specializationsAdmin.forEach(spec => {
+        const card = document.createElement('div');
+        card.className = 'service-card d-flex justify-content-between align-items-center';
+        card.innerHTML = `
+            <div>
+                <strong>${spec.name}</strong>
+            </div>
+            <div>
+                <button class="btn btn-sm btn-outline-primary" onclick="editSpec(${spec.id})">Изменить</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteSpec(${spec.id})">Удалить</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+// открыть модалку добавления специализации
+function openAddSpecModal() {
+    document.getElementById('specModalTitle').textContent = 'Добавить специализацию';
+    document.getElementById('specForm').reset();
+    document.getElementById('specId').value = '';
+    new bootstrap.Modal(document.getElementById('specModal')).show();
+}
+
+// редактирование специализации
+function editSpec(id) {
+    const spec = specializationsAdmin.find(s => s.id === id);
+    if (!spec) return;
+
+    document.getElementById('specModalTitle').textContent = 'Редактировать специализацию';
+    document.getElementById('specId').value = spec.id;
+    document.getElementById('specName').value = spec.name;
+    new bootstrap.Modal(document.getElementById('specModal')).show();
+}
+
+// сохранение специализации
+async function saveSpec() {
+    const name = document.getElementById('specName').value.trim();
+    const specId = document.getElementById('specId').value;
+
+    if (!name) {
+        alert('Введите название специализации');
+        return;
+    }
+
+    try {
+        const csrfToken = getCookie('csrftoken');
+        const url = specId ? `/api/specializations-admin/${specId}/` : '/api/specializations-admin/';
+        const method = specId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ name: name }),
+            credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('specModal')).hide();
+            await loadSpecializationsAdmin();
+            await loadSpecializations();
+            alert(specId ? 'Специализация обновлена!' : 'Специализация добавлена!');
+        } else {
+            const error = await response.json();
+            alert('Ошибка: ' + JSON.stringify(error));
+        }
+    } catch (error) {
+        console.error('ошибка сохранения:', error);
+        alert('Ошибка сохранения специализации');
+    }
+}
+
+// удаление специализации
+async function deleteSpec(id) {
+    if (!confirm('Удалить эту специализацию?')) return;
+
+    try {
+        const csrfToken = getCookie('csrftoken');
+        const response = await fetch(`/api/specializations-admin/${id}/`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+            await loadSpecializationsAdmin();
+            await loadSpecializations();
+            alert('Специализация удалена!');
+        } else {
+            alert('Ошибка удаления');
+        }
+    } catch (error) {
+        console.error('ошибка:', error);
+        alert('Ошибка удаления специализации');
     }
 }

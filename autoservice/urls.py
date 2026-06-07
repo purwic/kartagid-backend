@@ -5,6 +5,7 @@ from . import views
 router = DefaultRouter()
 router.register(r'services', views.ServiceViewSet, basename='service')
 router.register(r'specializations', views.SpecializationViewSet, basename='specialization')
+router.register(r'specializations-admin', views.SpecializationAdminViewSet, basename='specialization-admin')
 router.register(r'services-admin', views.ServiceCreateUpdateViewSet, basename='service-admin')
 router.register(r'reviews', views.ReviewViewSet, basename='review')
 

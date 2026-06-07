@@ -1,6 +1,118 @@
 const searchInput = document.getElementById('search-input');
 const searchResults = document.getElementById('search-results');
 
+// глобальные переменные для фильтров
+let activeFilters = {
+    spec: '',
+    minRating: 0,
+    checkMin: null,
+    checkMax: null
+};
+
+// открытие модального окна фильтров
+function openFilterModal() {
+    // загружаем специализации для фильтра
+    loadFilterSpecs();
+
+    // восстанавливаем сохраненные значения фильтров
+    document.getElementById('filter-rating').value = activeFilters.minRating || '0';
+    document.getElementById('filter-check-min').value = activeFilters.checkMin || '';
+    document.getElementById('filter-check-max').value = activeFilters.checkMax || '';
+
+    document.getElementById('filter-modal').classList.remove('hidden');
+}
+
+// закрытие модального окна фильтров
+function closeFilterModal() {
+    document.getElementById('filter-modal').classList.add('hidden');
+}
+
+// загрузка специализаций в фильтр
+// загрузка специализаций в фильтр
+async function loadFilterSpecs() {
+    try {
+        const response = await fetch('/api/specializations/');
+        const specs = await response.json();
+        const select = document.getElementById('filter-spec');
+        select.innerHTML = '<option value="">Все специализации</option>';
+        specs.forEach(spec => {
+            const option = document.createElement('option');
+            option.value = spec;
+            option.textContent = spec;
+            select.appendChild(option);
+        });
+
+        // восстанавливаем выбранную специализацию
+        if (activeFilters.spec) {
+            select.value = activeFilters.spec;
+        }
+    } catch (error) {
+        console.error('ошибка загрузки специализаций:', error);
+    }
+}
+
+// сброс фильтров
+function resetFilters() {
+    activeFilters = {
+        spec: '',
+        minRating: 0,
+        checkMin: null,
+        checkMax: null
+    };
+    document.getElementById('filter-spec').value = '';
+    document.getElementById('filter-rating').value = '0';
+    document.getElementById('filter-check-min').value = '';
+    document.getElementById('filter-check-max').value = '';
+    performSearch();
+    closeFilterModal();
+}
+
+// применение фильтров
+function applyFilters() {
+    activeFilters.spec = document.getElementById('filter-spec').value;
+    activeFilters.minRating = parseFloat(document.getElementById('filter-rating').value) || 0;
+    activeFilters.checkMin = document.getElementById('filter-check-min').value ?
+        parseInt(document.getElementById('filter-check-min').value) : null;
+    activeFilters.checkMax = document.getElementById('filter-check-max').value ?
+        parseInt(document.getElementById('filter-check-max').value) : null;
+
+    performSearch();
+    closeFilterModal();
+}
+
+// применение фильтров к списку сервисов
+function applyFiltersToServices(servicesList) {
+    return servicesList.filter(service => {
+        // фильтр по специализации
+        if (activeFilters.spec) {
+            const specs = service.specs || [];
+            if (!specs.includes(activeFilters.spec)) {
+                return false;
+            }
+        }
+
+        // фильтр по рейтингу
+        if (activeFilters.minRating > 0) {
+            if ((service.rating || 0) < activeFilters.minRating) {
+                return false;
+            }
+        }
+
+        // фильтр по среднему чеку
+        if (activeFilters.checkMin !== null) {
+            if ((service.avg_check || 0) < activeFilters.checkMin) {
+                return false;
+            }
+        }
+        if (activeFilters.checkMax !== null) {
+            if ((service.avg_check || 0) > activeFilters.checkMax) {
+                return false;
+            }
+        }
+
+        return true;
+    });
+}
 // поиск по enter
 searchInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
@@ -111,7 +223,7 @@ function performSearch() {
     const query = searchInput.value.trim().toLowerCase();
 
     // фильтруем только валидные сервисы (с координатами, названием и адресом)
-    const validServices = servicesData.filter(s => {
+    let validServices = servicesData.filter(s => {
         const hasCoords = s.latitude !== null && s.latitude !== undefined &&
                           s.longitude !== null && s.longitude !== undefined;
         const hasName = s.name && typeof s.name === 'string' && s.name.trim().length > 0;
@@ -119,6 +231,9 @@ function performSearch() {
 
         return hasCoords && hasName && hasAddress;
     });
+
+    // применяем фильтры
+    validServices = applyFiltersToServices(validServices);
 
     // если пусто — показать все валидные
     if (!query) {
